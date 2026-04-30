@@ -1,0 +1,29 @@
+# Central configuration for the AAS-UR3 thesis project.
+# Edit values here rather than hardcoding them in scripts.
+
+[ursim]
+# IP address of the URSim VM. Find it inside URSim with `ifconfig`.
+# Confirmed reachable from Tomas's Windows host on 2026-04-25.
+host = "192.168.233.128"
+rtde_port = 30004
+rtde_frequency_hz = 125          # 1..500 Hz; 125 is plenty for trajectory comparison
+
+[real_robot]
+# IP address of the physical UR3 in the lab.
+host = "192.168.1.101"          # CHANGE THIS when you're in the lab
+rtde_port = 30004
+rtde_frequency_hz = 125
+
+[aas_server]
+# Local AAS HTTP server (basyx-python-sdk) settings.
+host = "0.0.0.0"
+port = 8080
+storage_dir = "data/aas_storage"
+
+[storage]
+# SQLite database for recorded runs.
+db_path = "data/runs.db"
+
+[recording]
+# Default duration (seconds) for a single run if the program does not stop itself.
+default_duration_s = 30.0

@@ -1,0 +1,22 @@
+# Core AAS modeling and HTTP server
+basyx-python-sdk>=2.0.0
+flask>=3.0.0
+waitress>=3.0.0
+
+# UR robot communication (works for URSim AND physical UR3)
+ur_rtde>=1.5.9
+
+# Data + analysis
+numpy>=1.26
+pandas>=2.2
+scipy>=1.13
+
+# UI dashboard
+streamlit>=1.36
+plotly>=5.22
+
+# HTTP client for talking to the AAS server
+requests>=2.32
+
+# Config
+tomli>=2.0; python_version < "3.11"
