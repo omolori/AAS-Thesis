@@ -37,6 +37,7 @@ def execute_trajectory(
     pipeline: str,
     aas_params: dict | None = None,
     rtde_frequency_hz: float = 125.0,
+    queue_delay_s: float = 0.0,
     *,
     i_understand_this_moves_a_real_robot: bool = False,
 ) -> tuple[RunMetadata, list[RobotSample]]:
@@ -101,6 +102,10 @@ def execute_trajectory(
                 if wp.dwell_s > 0.0:
                     log.debug("  dwell %.2f s at %s", wp.dwell_s, wp.name)
                     time.sleep(wp.dwell_s)
+
+                if queue_delay_s > 0.0 and cycle_num < trajectory.n_cycles - 1:
+                    log.debug("  queue delay %.2f s", queue_delay_s)
+                    time.sleep(queue_delay_s)
 
         ended_at = time.time()
 

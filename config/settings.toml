@@ -27,3 +27,17 @@ db_path = "data/runs.db"
 [recording]
 # Default duration (seconds) for a single run if the program does not stop itself.
 default_duration_s = 30.0
+
+[basyx_server]
+# BaSyx AAS Environment server (external, running on the lab PC).
+# Set use_ngrok = true to go through the public ngrok tunnel instead of the
+# local IP (required when running from a different network or a second PC).
+local_url  = "http://192.168.1.231:8081"
+ngrok_url  = "https://casually-credit-duchess.ngrok-free.app"
+use_ngrok  = true
+
+# IDs of the three submodels on the BaSyx server.
+aas_id                  = "urn:ur3:simulation:1"
+submodel_inputs_id      = "urn:ur3:simulationinputs:1"
+submodel_kpi_id         = "urn:ur3:kpiresults:1"
+submodel_model_id       = "urn:ur3:simulationmodel:1"

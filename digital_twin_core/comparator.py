@@ -40,11 +40,16 @@ class ComparisonResult:
     run_b_id: str
     cycle_times_a_s: list[float]
     cycle_times_b_s: list[float]
-    joint_rmse_rad: list[float]       # length 6
+    cycle_time_std_a_s: float
+    cycle_time_std_b_s: float
+    joint_rmse_rad: list[float]            # length 6
     joint_rmse_combined_rad: float
     tcp_path_rms_deviation_m: float
+    tcp_path_std_deviation_m: float
     rms_current_a_per_joint: list[float]   # length 6
     rms_current_b_per_joint: list[float]
+    std_current_a_per_joint: list[float]
+    std_current_b_per_joint: list[float]
 
 
 def compare_runs(db_path: Path, run_a_id: str, run_b_id: str) -> ComparisonResult:
@@ -81,20 +86,34 @@ def compare_runs(db_path: Path, run_a_id: str, run_b_id: str) -> ComparisonResul
     tcp_dist = np.linalg.norm(tcp_a_r - tcp_b_r, axis=1)   # (N_shared,)
     tcp_rms = float(np.sqrt(np.mean(tcp_dist ** 2)))
 
-    # 4. RMS joint current (each run independently, over the full run)
+    # 4. RMS and std dev of joint current (each run independently, over the full run)
     rms_cur_a = [float(np.sqrt(np.mean(cur_a[:, j] ** 2))) for j in range(6)]
     rms_cur_b = [float(np.sqrt(np.mean(cur_b[:, j] ** 2))) for j in range(6)]
+    std_cur_a = [float(np.std(cur_a[:, j])) for j in range(6)]
+    std_cur_b = [float(np.std(cur_b[:, j])) for j in range(6)]
+
+    # Std dev of cycle times
+    ct_std_a = float(np.std(cycle_times_a)) if len(cycle_times_a) > 1 else 0.0
+    ct_std_b = float(np.std(cycle_times_b)) if len(cycle_times_b) > 1 else 0.0
+
+    # Std dev of TCP deviation across timesteps
+    tcp_std = float(np.std(tcp_dist))
 
     return ComparisonResult(
         run_a_id=run_a_id,
         run_b_id=run_b_id,
         cycle_times_a_s=cycle_times_a,
         cycle_times_b_s=cycle_times_b,
+        cycle_time_std_a_s=ct_std_a,
+        cycle_time_std_b_s=ct_std_b,
         joint_rmse_rad=joint_rmse,
         joint_rmse_combined_rad=joint_rmse_combined,
         tcp_path_rms_deviation_m=tcp_rms,
+        tcp_path_std_deviation_m=tcp_std,
         rms_current_a_per_joint=rms_cur_a,
         rms_current_b_per_joint=rms_cur_b,
+        std_current_a_per_joint=std_cur_a,
+        std_current_b_per_joint=std_cur_b,
     )
 
 
@@ -112,19 +131,26 @@ def write_comparison_csv(result: ComparisonResult, output_path: Path) -> None:
         rows.append((f"cycle_time_b_cycle{i+1}_s", f"{t:.4f}"))
     if result.cycle_times_a_s:
         rows.append(("cycle_time_a_mean_s", f"{sum(result.cycle_times_a_s)/len(result.cycle_times_a_s):.4f}"))
+        rows.append(("cycle_time_a_std_s", f"{result.cycle_time_std_a_s:.4f}"))
     if result.cycle_times_b_s:
         rows.append(("cycle_time_b_mean_s", f"{sum(result.cycle_times_b_s)/len(result.cycle_times_b_s):.4f}"))
+        rows.append(("cycle_time_b_std_s", f"{result.cycle_time_std_b_s:.4f}"))
     rows.append(("", ""))
     for j, v in enumerate(result.joint_rmse_rad):
         rows.append((f"joint_rmse_j{j+1}_rad", f"{v:.6f}"))
     rows.append(("joint_rmse_combined_rad", f"{result.joint_rmse_combined_rad:.6f}"))
     rows.append(("", ""))
     rows.append(("tcp_path_rms_deviation_m", f"{result.tcp_path_rms_deviation_m:.6f}"))
+    rows.append(("tcp_path_std_deviation_m", f"{result.tcp_path_std_deviation_m:.6f}"))
     rows.append(("", ""))
     for j, v in enumerate(result.rms_current_a_per_joint):
         rows.append((f"rms_current_a_j{j+1}_A", f"{v:.4f}"))
+    for j, v in enumerate(result.std_current_a_per_joint):
+        rows.append((f"std_current_a_j{j+1}_A", f"{v:.4f}"))
     for j, v in enumerate(result.rms_current_b_per_joint):
         rows.append((f"rms_current_b_j{j+1}_A", f"{v:.4f}"))
+    for j, v in enumerate(result.std_current_b_per_joint):
+        rows.append((f"std_current_b_j{j+1}_A", f"{v:.4f}"))
 
     with open(output_path, "w", newline="") as f:
         writer = csv.writer(f)

@@ -1,13 +1,12 @@
-"""HTTP client for the local AAS server.
+"""HTTP clients for AAS servers.
 
-Fetches simulation parameters from the SimulationModels submodel and
-presents them as plain Python dicts that sim_runner.py can consume
-directly. Keeps all AAS JSON parsing contained here so the rest of
-the pipeline never touches raw AAS API responses.
+AASClient    — local basyx-python-sdk server (Phase 3/4 local server).
+BaSyxClient  — external BaSyx AAS Environment server (Phase 4+ BaSyx deployment).
+               Supports both local IP and ngrok tunnel.
+               Reads SimulationInputs before a run and writes KPIResults after.
 
-Maps to thesis §2.2 (Reactive AAS): the AAS server is the single
-authoritative source for parameters injected into the AAS-enabled
-simulation pipeline.
+Maps to thesis §2.2 (Reactive AAS): bidirectional AAS integration where the
+server both configures the simulation (input) and receives the results (output).
 """
 from __future__ import annotations
 
@@ -115,3 +114,108 @@ class AASClient:
             "joint_calibration_offsets_rad": calibration_offsets,
             "joint_friction_coefficients": friction_coefficients,
         }
+
+
+class BaSyxClient:
+    """Client for the external BaSyx AAS Environment server.
+
+    Reads simulation input parameters from the SimulationInputs submodel
+    and writes computed KPIs back to the KPIResults submodel after each run.
+
+    Works with both the local IP and a public ngrok tunnel.  When using
+    ngrok, the 'ngrok-skip-browser-warning' header is required to bypass
+    the ngrok interstitial page.
+
+    Property mapping:
+        SimulationInputs:
+            RobotMoveTime   → trajectory speed_rad_s  (rad/s)
+            PickPlaceTime   → dwell time at pick/place (s)
+            QueueDelay      → pause between cycles (s)
+            AvailableTime   → shift available time for Utilization KPI (s)
+
+        KPIResults (written after each run):
+            CycleTime           → mean cycle time (s)
+            Throughput          → cycles per hour
+            Utilization         → motion time / AvailableTime  (%)
+            ProductionLeadTime  → total run duration (s)
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        inputs_id: str,
+        kpi_id: str,
+        use_ngrok_header: bool = False,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.inputs_id = inputs_id
+        self.kpi_id = kpi_id
+        self._headers: dict[str, str] = {}
+        if use_ngrok_header:
+            self._headers["ngrok-skip-browser-warning"] = "true"
+
+    def is_alive(self) -> bool:
+        """Health check: GET /shells and expect a 200 response."""
+        try:
+            r = requests.get(
+                f"{self.base_url}/shells",
+                headers=self._headers,
+                timeout=5,
+            )
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    def fetch_simulation_inputs(self) -> dict:
+        """Read SimulationInputs submodel and return trajectory parameters.
+
+        Returns:
+            {
+                "robot_move_time":  float,  # speed_rad_s for moveJ
+                "pick_place_time":  float,  # dwell_s at pick and place
+                "queue_delay":      float,  # pause between cycles (s)
+                "available_time":   float,  # shift available time (s)
+            }
+        """
+        def _get(prop: str) -> float:
+            url = (
+                f"{self.base_url}/submodels/{_b64url(self.inputs_id)}"
+                f"/submodel-elements/{prop}"
+            )
+            r = requests.get(url, headers=self._headers, timeout=5)
+            r.raise_for_status()
+            return float(r.json()["value"])
+
+        return {
+            "robot_move_time": _get("RobotMoveTime"),
+            "pick_place_time": _get("PickPlaceTime"),
+            "queue_delay":     _get("QueueDelay"),
+            "available_time":  _get("AvailableTime"),
+        }
+
+    def write_kpi_results(
+        self,
+        cycle_time_s: float,
+        throughput_per_hour: float,
+        utilization_pct: float,
+        production_lead_time_s: float,
+    ) -> None:
+        """PATCH KPIResults submodel with computed values."""
+        kpis = {
+            "CycleTime":           cycle_time_s,
+            "Throughput":          throughput_per_hour,
+            "Utilization":         utilization_pct,
+            "ProductionLeadTime":  production_lead_time_s,
+        }
+        for prop, value in kpis.items():
+            url = (
+                f"{self.base_url}/submodels/{_b64url(self.kpi_id)}"
+                f"/submodel-elements/{prop}/$value"
+            )
+            r = requests.patch(
+                url,
+                json=value,
+                headers={**self._headers, "Content-Type": "application/json"},
+                timeout=5,
+            )
+            r.raise_for_status()

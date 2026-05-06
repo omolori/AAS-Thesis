@@ -46,12 +46,12 @@ def _print_result(result) -> None:  # type: ignore[no-untyped-def]
     print("\n  CYCLE TIMES")
     if result.cycle_times_a_s:
         mean_a = sum(result.cycle_times_a_s) / len(result.cycle_times_a_s)
-        print(f"    A  per cycle : {[f'{t:.3f}s' for t in result.cycle_times_a_s]}  mean={mean_a:.3f}s")
+        print(f"    A  per cycle : {[f'{t:.3f}s' for t in result.cycle_times_a_s]}  mean={mean_a:.3f}s  std={result.cycle_time_std_a_s:.3f}s")
     else:
         print("    A  : no cycles detected")
     if result.cycle_times_b_s:
         mean_b = sum(result.cycle_times_b_s) / len(result.cycle_times_b_s)
-        print(f"    B  per cycle : {[f'{t:.3f}s' for t in result.cycle_times_b_s]}  mean={mean_b:.3f}s")
+        print(f"    B  per cycle : {[f'{t:.3f}s' for t in result.cycle_times_b_s]}  mean={mean_b:.3f}s  std={result.cycle_time_std_b_s:.3f}s")
     else:
         print("    B  : no cycles detected")
 
@@ -60,15 +60,18 @@ def _print_result(result) -> None:  # type: ignore[no-untyped-def]
         print(f"    J{j+1} : {v:.6f} rad")
     print(f"    combined : {result.joint_rmse_combined_rad:.6f} rad")
 
-    print("\n  TCP PATH RMS DEVIATION")
-    print(f"    {result.tcp_path_rms_deviation_m*1000:.3f} mm  ({result.tcp_path_rms_deviation_m:.6f} m)")
+    print("\n  TCP PATH DEVIATION")
+    print(f"    RMS : {result.tcp_path_rms_deviation_m*1000:.3f} mm  ({result.tcp_path_rms_deviation_m:.6f} m)")
+    print(f"    STD : {result.tcp_path_std_deviation_m*1000:.3f} mm  ({result.tcp_path_std_deviation_m:.6f} m)")
 
-    print("\n  RMS JOINT CURRENT  (A)")
-    print(f"    {'joint':<8}  {'run A':>10}  {'run B':>10}")
+    print("\n  JOINT CURRENT  (A)")
+    print(f"    {'joint':<8}  {'RMS A':>8}  {'STD A':>8}  {'RMS B':>8}  {'STD B':>8}")
     for j in range(6):
-        a = result.rms_current_a_per_joint[j]
-        b = result.rms_current_b_per_joint[j]
-        print(f"    J{j+1:<7}  {a:>10.4f}  {b:>10.4f}")
+        rms_a = result.rms_current_a_per_joint[j]
+        std_a = result.std_current_a_per_joint[j]
+        rms_b = result.rms_current_b_per_joint[j]
+        std_b = result.std_current_b_per_joint[j]
+        print(f"    J{j+1:<7}  {rms_a:>8.4f}  {std_a:>8.4f}  {rms_b:>8.4f}  {std_b:>8.4f}")
 
     print(sep)
 
