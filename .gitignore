@@ -7,7 +7,7 @@ venv/
 .env
 
 # Project data
-data/runs.db
+# data/runs.db is committed so Streamlit Cloud has sample data to display
 data/aas_storage/
 *.db-journal
 

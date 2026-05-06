@@ -26,10 +26,10 @@ from typing import Any
 
 try:
     from rtde_receive import RTDEReceiveInterface
-except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "ur_rtde is not installed. Run: pip install ur_rtde"
-    ) from exc
+    _RTDE_AVAILABLE = True
+except ImportError:
+    RTDEReceiveInterface = None  # type: ignore[assignment,misc]
+    _RTDE_AVAILABLE = False
 
 
 @dataclass
@@ -76,8 +76,10 @@ class RTDEClient:
     def connect(self) -> None:
         if self._receiver is not None:
             return
-        # ur_rtde's RTDEReceiveInterface(host, frequency, variables)
-        # If `variables` is omitted, all standard outputs are streamed.
+        if not _RTDE_AVAILABLE:
+            raise ImportError(
+                "ur_rtde is not installed. Run: pip install ur_rtde"
+            )
         self._receiver = RTDEReceiveInterface(self.host, self.frequency_hz)
 
     def disconnect(self) -> None:
