@@ -81,6 +81,12 @@ def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
 # ---------------------------------------------------------------------------
 
 st.markdown("# Control Panel")
+st.markdown(
+    '<div style="color:#7a8fa6;font-size:0.88rem;margin-bottom:8px">'
+    'Local use only — requires the dashboard to be running on the same machine as URSim and the AAS server.'
+    '</div>',
+    unsafe_allow_html=True,
+)
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # ── AAS Server status ───────────────────────────────────────────────────────
