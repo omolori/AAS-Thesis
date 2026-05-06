@@ -23,3 +23,6 @@ Thumbs.db
 CLAUDE.md
 PHASE_4_SPEC.md
 .claude/
+
+# Secrets — never commit
+.streamlit/secrets.toml

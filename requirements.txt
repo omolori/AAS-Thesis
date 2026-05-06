@@ -18,5 +18,8 @@ plotly>=5.22
 # HTTP client for talking to the AAS server
 requests>=2.32
 
+# Cloud database (Supabase / PostgreSQL)
+psycopg2-binary>=2.9
+
 # Config
 tomli>=2.0; python_version < "3.11"
