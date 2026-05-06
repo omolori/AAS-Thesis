@@ -11,17 +11,20 @@ import numpy as np
 
 from config_loader import config
 from digital_twin_core.recorder import list_runs, load_run
-from dashboard.styles import inject_css, apply_plot_style, JOINT_COLORS, CARD_BG, BORDER
+from digital_twin_core.comparator import _detect_cycle_times
+from dashboard.styles import inject_css, apply_plot_style, JOINT_COLORS, CARD_BG, BORDER, TEAL, YELLOW
+from dashboard._sidebar import render as render_sidebar
 
 st.set_page_config(page_title="Run Inspector", layout="wide")
 inject_css()
 
+db_path = PROJECT_ROOT / config["storage"]["db_path"]
+render_sidebar(db_path)
+
 st.markdown("# Run Inspector")
 st.markdown("<hr>", unsafe_allow_html=True)
 
-db_path = PROJECT_ROOT / config["storage"]["db_path"]
 runs = list_runs(db_path)
-
 if not runs:
     st.warning("No runs found.")
     st.stop()
@@ -33,12 +36,11 @@ options = {
 run_id = options[st.selectbox("Select run", list(options.keys()))]
 meta, samples = load_run(db_path, run_id)
 
-# Metadata
 dur = meta.ended_at_unix - meta.started_at_unix
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Pipeline",    meta.pipeline)
-col2.metric("Duration",    f"{dur:.1f} s")
-col3.metric("Samples",     f"{len(samples):,}")
+col2.metric("Duration",    f"{dur:.1f} s",          help="Wall-clock time from first to last sample")
+col3.metric("Samples",     f"{len(samples):,}",     help="Total RTDE samples recorded at ~125 Hz")
 col4.metric("Sample Rate", f"{len(samples)/dur:.0f} Hz")
 col5.metric("Trajectory",  meta.trajectory_name)
 
@@ -53,19 +55,56 @@ q       = np.array([s.actual_q for s in samples])
 tcp     = np.array([s.actual_tcp_pose for s in samples])
 current = np.array([s.actual_current for s in samples])
 
-# Joint Positions
+# Detect cycle boundaries for markers
+cycle_times = _detect_cycle_times(t, q)
+
+def add_cycle_markers(fig: go.Figure, t_arr: np.ndarray, q_arr: np.ndarray) -> None:
+    """Add vertical lines at detected cycle boundaries."""
+    from digital_twin_core.trajectory import pick_and_place_trajectory
+    HOME_Q = list(pick_and_place_trajectory().waypoints[0].joint_positions_rad)
+    HOME_TOL = 0.05
+    in_cycle = False
+    for i in range(len(t_arr)):
+        at_home = all(abs(q_arr[i, j] - HOME_Q[j]) < HOME_TOL for j in range(6))
+        if not in_cycle and not at_home:
+            in_cycle = True
+        elif in_cycle and at_home:
+            in_cycle = False
+            fig.add_vline(
+                x=float(t_arr[i]),
+                line=dict(color=YELLOW, width=1, dash="dot"),
+                annotation_text="home",
+                annotation_font=dict(color=YELLOW, size=10),
+            )
+
+# ── Joint Positions ──────────────────────────────────────────────────
 st.markdown("## Joint Positions")
+if cycle_times:
+    st.caption(f"Detected {len(cycle_times)} cycles — dotted lines mark home waypoint returns")
+
 fig_q = go.Figure()
 for j in range(6):
     fig_q.add_trace(go.Scatter(
         x=t, y=q[:, j], name=f"J{j+1}",
         mode="lines", line=dict(color=JOINT_COLORS[j], width=1.8),
     ))
-apply_plot_style(fig_q)
+add_cycle_markers(fig_q, t, q)
+apply_plot_style(fig_q, rangeslider=True)
 fig_q.update_layout(xaxis_title="Time (s)", yaxis_title="Position (rad)")
 st.plotly_chart(fig_q, use_container_width=True)
 
-# TCP + 3D
+# ── Cycle time summary ───────────────────────────────────────────────
+if cycle_times:
+    st.markdown("### Detected Cycle Times")
+    cols = st.columns(len(cycle_times) + 2)
+    for i, ct in enumerate(cycle_times):
+        cols[i].metric(f"Cycle {i+1}", f"{ct:.3f} s")
+    cols[-2].metric("Mean", f"{np.mean(cycle_times):.3f} s")
+    cols[-1].metric("Std",  f"{np.std(cycle_times):.3f} s")
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ── TCP ──────────────────────────────────────────────────────────────
 st.markdown("## TCP Pose")
 col1, col2 = st.columns(2)
 
@@ -77,7 +116,7 @@ with col1:
             x=t, y=tcp[:, i], name=lbl,
             mode="lines", line=dict(color=clr, width=1.8),
         ))
-    apply_plot_style(fig_tcp, height=340)
+    apply_plot_style(fig_tcp, height=340, rangeslider=True)
     fig_tcp.update_layout(xaxis_title="Time (s)", yaxis_title="Position (m)")
     st.plotly_chart(fig_tcp, use_container_width=True)
 
@@ -101,7 +140,9 @@ with col2:
     )
     st.plotly_chart(fig_3d, use_container_width=True)
 
-# Joint Currents
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ── Joint Currents ────────────────────────────────────────────────────
 st.markdown("## Joint Currents")
 fig_cur = go.Figure()
 for j in range(6):
@@ -109,7 +150,8 @@ for j in range(6):
         x=t, y=current[:, j], name=f"J{j+1}",
         mode="lines", line=dict(color=JOINT_COLORS[j], width=1.8),
     ))
-apply_plot_style(fig_cur, height=340)
+add_cycle_markers(fig_cur, t, q)
+apply_plot_style(fig_cur, height=340, rangeslider=True)
 fig_cur.update_layout(xaxis_title="Time (s)", yaxis_title="Current (A)")
 st.plotly_chart(fig_cur, use_container_width=True)
 
@@ -118,4 +160,23 @@ st.markdown("### RMS Current per Joint")
 cols = st.columns(6)
 for j in range(6):
     rms = float(np.sqrt(np.mean(current[:, j] ** 2)))
-    cols[j].metric(f"J{j+1}", f"{rms:.4f} A")
+    cols[j].metric(f"J{j+1}", f"{rms:.4f} A", help=f"Root-mean-square current for joint {j+1} over the full run")
+
+# ── Quick Compare ─────────────────────────────────────────────────────
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("### Quick Compare")
+st.caption("Compare this run against another run without leaving the page.")
+
+other_options = {k: v for k, v in options.items() if v != run_id}
+if other_options:
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        other_label = st.selectbox("Compare with", list(other_options.keys()), key="quick_compare")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        go_compare = st.button("Go to Comparison", use_container_width=True)
+
+    if go_compare:
+        st.session_state["compare_a"] = run_id
+        st.session_state["compare_b"] = other_options[other_label]
+        st.switch_page("pages/3_Comparison.py")

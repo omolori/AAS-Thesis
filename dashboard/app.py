@@ -11,6 +11,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 from dashboard.styles import inject_css, pipeline_badge, TEAL, PIPELINE_COLORS
+from dashboard._sidebar import render as render_sidebar
 
 st.set_page_config(
     page_title="UR3 Digital Twin",
@@ -23,6 +24,7 @@ from config_loader import config
 from digital_twin_core.recorder import list_runs
 
 db_path = PROJECT_ROOT / config["storage"]["db_path"]
+render_sidebar(db_path)
 runs = list_runs(db_path)
 
 # --- Header ---

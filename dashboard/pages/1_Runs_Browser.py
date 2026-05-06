@@ -11,15 +11,18 @@ import plotly.graph_objects as go
 
 from config_loader import config
 from digital_twin_core.recorder import list_runs
-from dashboard.styles import inject_css, pipeline_badge, PIPELINE_COLORS, apply_plot_style, CARD_BG, BORDER, GREY
+from dashboard.styles import inject_css, pipeline_badge, PIPELINE_COLORS, apply_plot_style
+from dashboard._sidebar import render as render_sidebar
 
 st.set_page_config(page_title="Runs Browser", layout="wide")
 inject_css()
 
+db_path = PROJECT_ROOT / config["storage"]["db_path"]
+render_sidebar(db_path)
+
 st.markdown("# Runs Browser")
 st.markdown("<hr>", unsafe_allow_html=True)
 
-db_path = PROJECT_ROOT / config["storage"]["db_path"]
 runs = list_runs(db_path)
 
 if not runs:

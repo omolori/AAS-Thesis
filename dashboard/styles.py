@@ -39,8 +39,24 @@ PLOT_LAYOUT = dict(
 )
 
 
-def apply_plot_style(fig: go.Figure, height: int = 380) -> go.Figure:
+def apply_plot_style(fig: go.Figure, height: int = 380, rangeslider: bool = False) -> go.Figure:
     fig.update_layout(height=height, **PLOT_LAYOUT)
+    if rangeslider:
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=0.06, bgcolor="#0E1117"),
+            rangeselector=dict(
+                buttons=[
+                    dict(count=10, label="10s", step="second", stepmode="backward"),
+                    dict(count=30, label="30s", step="second", stepmode="backward"),
+                    dict(label="All", step="all"),
+                ],
+                bgcolor="#161C27",
+                activecolor="#0097b2",
+                font=dict(color="#ccd7e2", size=11),
+                bordercolor="#232B3B",
+                x=0, y=1.08,
+            ),
+        )
     return fig
 
 
