@@ -3,7 +3,7 @@
 Start the AAS server, run pipelines, and stream live output —
 all from the browser without touching a terminal.
 
-Only works when running locally (URSim and AAS server must be reachable).
+Only works when running locally (URSim must be running and in Remote Control mode).
 """
 import sys
 import subprocess
@@ -14,10 +14,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
-import psutil
+import requests as req
 
 from config_loader import config
-from dashboard.styles import inject_css, TEAL, ORANGE, GREEN, PIPELINE_COLORS
+from dashboard.styles import inject_css, TEAL, ORANGE, GREEN
 from dashboard._sidebar import render as render_sidebar
 
 st.set_page_config(page_title="Control Panel", layout="wide")
@@ -26,51 +26,42 @@ inject_css()
 db_path = PROJECT_ROOT / config["storage"]["db_path"]
 render_sidebar(db_path)
 
-PYTHON  = sys.executable
-PID_FILE = PROJECT_ROOT / "data" / ".aas_server.pid"
+PYTHON   = sys.executable
+AAS_PORT = int(config["aas_server"]["port"])
+AAS_URL  = f"http://localhost:{AAS_PORT}/api/v3.0"
 
 
 # ---------------------------------------------------------------------------
-# Process helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _server_pid() -> int | None:
-    if not PID_FILE.exists():
-        return None
+def _server_alive() -> bool:
     try:
-        pid = int(PID_FILE.read_text().strip())
-        return pid if psutil.pid_exists(pid) else None
+        r = req.get(f"{AAS_URL}/shells", timeout=1)
+        return r.status_code == 200
     except Exception:
-        return None
+        return False
 
 
 def _start_server() -> None:
-    proc = subprocess.Popen(
-        [PYTHON, "scripts/start_aas_server.py"],
+    subprocess.Popen(
+        [PYTHON, str(PROJECT_ROOT / "scripts" / "start_aas_server.py")],
         cwd=str(PROJECT_ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
     )
-    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PID_FILE.write_text(str(proc.pid))
-    time.sleep(2)  # give the server time to bind
-
-
-def _stop_server() -> None:
-    pid = _server_pid()
-    if pid:
-        try:
-            psutil.Process(pid).terminate()
-        except Exception:
-            pass
-    PID_FILE.unlink(missing_ok=True)
+    # Wait up to 5s for the server to start responding
+    for _ in range(10):
+        time.sleep(0.5)
+        if _server_alive():
+            break
 
 
 def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
-    """Run a pipeline script and stream output live into log_placeholder."""
     lines: list[str] = []
     proc = subprocess.Popen(
-        [PYTHON, script],
+        [PYTHON, str(PROJECT_ROOT / script)],
         cwd=str(PROJECT_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -92,108 +83,90 @@ def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
 st.markdown("# Control Panel")
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ── AAS Server ──────────────────────────────────────────────────────────────
+# ── AAS Server status ───────────────────────────────────────────────────────
 st.markdown("## AAS Server")
 
-pid = _server_pid()
-if pid:
-    st.markdown(
-        f'<div style="display:inline-flex;align-items:center;gap:10px;'
-        f'background:#161C27;border:1px solid #232B3B;border-left:3px solid {GREEN};'
-        f'border-radius:8px;padding:12px 20px;margin-bottom:16px">'
-        f'<div style="width:10px;height:10px;border-radius:50%;background:{GREEN}"></div>'
-        f'<div style="color:{GREEN};font-weight:700">Running</div>'
-        f'<div style="color:#7a8fa6;font-size:0.85rem">PID {pid} &nbsp;·&nbsp; '
-        f'http://localhost:{config["aas_server"]["port"]}/api/v3.0</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    if st.button("Stop AAS Server", use_container_width=False):
-        _stop_server()
-        st.rerun()
-else:
-    st.markdown(
-        f'<div style="display:inline-flex;align-items:center;gap:10px;'
-        f'background:#161C27;border:1px solid #232B3B;border-left:3px solid #E63946;'
-        f'border-radius:8px;padding:12px 20px;margin-bottom:16px">'
-        f'<div style="width:10px;height:10px;border-radius:50%;background:#E63946"></div>'
-        f'<div style="color:#E63946;font-weight:700">Stopped</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    if st.button("Start AAS Server", type="primary", use_container_width=False):
+alive = _server_alive()
+dot_color = GREEN if alive else "#E63946"
+status_text = "Running" if alive else "Stopped"
+border_color = GREEN if alive else "#E63946"
+
+st.markdown(
+    f'<div style="display:inline-flex;align-items:center;gap:10px;'
+    f'background:#161C27;border:1px solid #232B3B;border-left:3px solid {border_color};'
+    f'border-radius:8px;padding:12px 20px;margin-bottom:16px">'
+    f'<div style="width:10px;height:10px;border-radius:50%;background:{dot_color}"></div>'
+    f'<div style="color:{dot_color};font-weight:700">{status_text}</div>'
+    f'{"<div style=color:#7a8fa6;font-size:0.85rem>&nbsp;·&nbsp;" + AAS_URL + "</div>" if alive else ""}'
+    f'</div>',
+    unsafe_allow_html=True,
+)
+
+col1, col2 = st.columns([1, 5])
+if not alive:
+    if col1.button("Start AAS Server", type="primary"):
         with st.spinner("Starting AAS server..."):
             _start_server()
         st.rerun()
+else:
+    col1.button("Running — no action needed", disabled=True)
+
+if col2.button("Refresh status"):
+    st.rerun()
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ── Pipeline Controls ───────────────────────────────────────────────────────
+# ── Pipeline controls ────────────────────────────────────────────────────────
 st.markdown("## Run Pipelines")
-st.caption("URSim must be running and in Remote Control mode before running a pipeline.")
+st.caption("URSim must be running and in Remote Control mode.")
 
 col1, col2, col3 = st.columns(3)
-
-run_no_aas = col1.button(
-    "Run sim_no_aas",
-    type="primary",
-    use_container_width=True,
-    help="Execute the trajectory on URSim with default parameters",
-)
-run_aas = col2.button(
-    "Run sim_aas",
-    use_container_width=True,
-    help="Execute the trajectory on URSim with AAS parameters applied",
-)
-run_both = col3.button(
-    "Run Both",
-    use_container_width=True,
-    help="Run sim_no_aas then sim_aas back to back",
-)
+run_no_aas = col1.button("Run sim_no_aas", type="primary", use_container_width=True)
+run_aas    = col2.button("Run sim_aas",    use_container_width=True)
+run_both   = col3.button("Run Both",       use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 log_area = st.empty()
 
-# ── Execute ────────────────────────────────────────────────────────────────
 last_runs: list[str] = []
 
 if run_no_aas or run_both:
-    if not _server_pid():
+    if not _server_alive():
         st.warning("Start the AAS server first.")
     else:
         st.markdown(
-            f'<div style="color:{TEAL};font-weight:700;margin-bottom:8px">'
+            f'<div style="color:{TEAL};font-weight:700;margin-bottom:6px">'
             f'Running sim_no_aas...</div>',
             unsafe_allow_html=True,
         )
         code, lines = _run_script("scripts/run_sim_no_aas.py", log_area)
         if code == 0:
-            run_id = next((l.split(":")[1].strip() for l in lines if "Run completed" in l), None)
+            run_id = next((l.split(":", 1)[1].strip() for l in lines if "Run completed" in l), None)
             if run_id:
                 last_runs.append(run_id)
-                st.success(f"sim_no_aas complete — run ID: `{run_id}`")
+                st.success(f"sim_no_aas done — `{run_id}`")
         else:
-            st.error("sim_no_aas failed. Check the log above.")
+            st.error("sim_no_aas failed. See log above.")
 
 if run_aas or run_both:
-    if not _server_pid():
+    if not _server_alive():
         st.warning("Start the AAS server first.")
     else:
         st.markdown(
-            f'<div style="color:{ORANGE};font-weight:700;margin-bottom:8px">'
+            f'<div style="color:{ORANGE};font-weight:700;margin-bottom:6px">'
             f'Running sim_aas...</div>',
             unsafe_allow_html=True,
         )
         code, lines = _run_script("scripts/run_sim_aas.py", log_area)
         if code == 0:
-            run_id = next((l.split(":")[1].strip() for l in lines if "Run completed" in l), None)
+            run_id = next((l.split(":", 1)[1].strip() for l in lines if "Run completed" in l), None)
             if run_id:
                 last_runs.append(run_id)
-                st.success(f"sim_aas complete — run ID: `{run_id}`")
+                st.success(f"sim_aas done — `{run_id}`")
         else:
-            st.error("sim_aas failed. Check the log above.")
+            st.error("sim_aas failed. See log above.")
 
-# ── Auto-compare shortcut ───────────────────────────────────────────────────
+# ── Auto-compare shortcut ─────────────────────────────────────────────────
 if len(last_runs) == 2:
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("### Both pipelines finished")
