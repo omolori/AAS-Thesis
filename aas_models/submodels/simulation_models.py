@@ -28,14 +28,16 @@ def build_simulation_models() -> model.Submodel:
     # ----- Payload --------------------------------------------------------
     # The current load attached to the TCP. Affects gravity compensation
     # and dynamics. URSim defaults to 0 kg unless told otherwise.
+    # Representative values for a small gripper (0.5 kg, CoG 6 cm along
+    # flange Z axis). Replace with lab-measured values once available.
     payload = make_collection(
         id_short="Payload",
         description="Mass and centre-of-gravity of the load attached to the TCP.",
         elements=[
-            make_property("Mass_kg",  0.0, model.datatypes.Double),
-            make_property("CoG_X_m",  0.0, model.datatypes.Double),
-            make_property("CoG_Y_m",  0.0, model.datatypes.Double),
-            make_property("CoG_Z_m",  0.0, model.datatypes.Double),
+            make_property("Mass_kg",  0.5,  model.datatypes.Double),
+            make_property("CoG_X_m",  0.0,  model.datatypes.Double),
+            make_property("CoG_Y_m",  0.0,  model.datatypes.Double),
+            make_property("CoG_Z_m",  0.06, model.datatypes.Double),
         ],
     )
     submodel.submodel_element.add(payload)
@@ -43,13 +45,15 @@ def build_simulation_models() -> model.Submodel:
     # ----- Tool TCP offset ------------------------------------------------
     # Position + orientation of the tool tip relative to the flange.
     # Critical for accurate Cartesian motion in simulation.
+    # Tool extends 10 cm along flange Z axis, no rotation offset.
+    # Replace with PolyScope 4-point TCP wizard result from the lab.
     tool_tcp = make_collection(
         id_short="ToolTCPOffset",
         description="Tool centre point pose relative to flange (x,y,z in m; rx,ry,rz axis-angle rad).",
         elements=[
             make_property("X_m", 0.0, model.datatypes.Double),
             make_property("Y_m", 0.0, model.datatypes.Double),
-            make_property("Z_m", 0.0, model.datatypes.Double),
+            make_property("Z_m", 0.1, model.datatypes.Double),
             make_property("Rx",  0.0, model.datatypes.Double),
             make_property("Ry",  0.0, model.datatypes.Double),
             make_property("Rz",  0.0, model.datatypes.Double),
