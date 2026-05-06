@@ -155,16 +155,19 @@ class BaSyxClient:
             self._headers["ngrok-skip-browser-warning"] = "true"
 
     def is_alive(self) -> bool:
-        """Health check: GET /shells and expect a 200 response."""
-        try:
-            r = requests.get(
-                f"{self.base_url}/shells",
-                headers=self._headers,
-                timeout=5,
-            )
-            return r.status_code == 200
-        except Exception:
-            return False
+        """Health check: try /submodels then /shells — works with different BaSyx versions."""
+        for endpoint in ["/submodels", "/shells"]:
+            try:
+                r = requests.get(
+                    f"{self.base_url}{endpoint}",
+                    headers=self._headers,
+                    timeout=5,
+                )
+                if r.status_code == 200:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def fetch_simulation_inputs(self) -> dict:
         """Read SimulationInputs submodel and return trajectory parameters.

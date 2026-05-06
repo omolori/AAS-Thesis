@@ -35,7 +35,7 @@ for r in runs:
         "run_id":      r.run_id,
         "pipeline":    r.pipeline,
         "trajectory":  r.trajectory_name,
-        "started_at":  datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at":  datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%d/%m/%Y %H:%M:%S"),
         "duration_s":  round(r.ended_at_unix - r.started_at_unix, 1),
         "aas_params":  r.aas_params_used is not None,
     })

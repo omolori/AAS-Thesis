@@ -33,7 +33,7 @@ default_duration_s = 30.0
 # Set use_ngrok = true to go through the public ngrok tunnel instead of the
 # local IP (required when running from a different network or a second PC).
 local_url  = "http://192.168.1.231:8081"
-ngrok_url  = "https://casually-credit-duchess.ngrok-free.app"
+ngrok_url  = "https://casually-credit-duchess.ngrok-free.dev"
 use_ngrok  = true
 
 # IDs of the three submodels on the BaSyx server.

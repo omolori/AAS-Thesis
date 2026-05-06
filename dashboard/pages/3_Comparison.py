@@ -34,7 +34,7 @@ if len(runs) < 2:
     st.stop()
 
 options = {
-    f"{r.pipeline}  |  {dt.datetime.fromtimestamp(r.started_at_unix).strftime('%Y-%m-%d %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
+    f"{r.pipeline}  |  {dt.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
     for r in reversed(runs)
 }
 labels     = list(options.keys())
@@ -96,7 +96,7 @@ with col1:
         f'<div style="font-size:0.78rem;color:{COLOR_A};font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Run A — Baseline</div>'
         f'<div style="margin-top:6px">{pipeline_badge(meta_a.pipeline)}</div>'
         f'<div style="color:#7a8fa6;font-size:0.8rem;margin-top:6px">'
-        f'{dt.datetime.fromtimestamp(meta_a.started_at_unix).strftime("%Y-%m-%d %H:%M:%S")} &nbsp;&middot;&nbsp; '
+        f'{dt.datetime.fromtimestamp(meta_a.started_at_unix).strftime("%d/%m/%Y %H:%M:%S")} &nbsp;&middot;&nbsp; '
         f'{dur_a:.1f}s &nbsp;&middot;&nbsp; {len(samples_a):,} samples</div>'
         f'<div style="color:#4a5568;font-size:0.72rem;font-family:monospace;margin-top:4px">{run_a_id}</div>'
         f'</div>',
@@ -110,7 +110,7 @@ with col2:
         f'<div style="font-size:0.78rem;color:{COLOR_B};font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Run B — Candidate</div>'
         f'<div style="margin-top:6px">{pipeline_badge(meta_b.pipeline)}</div>'
         f'<div style="color:#7a8fa6;font-size:0.8rem;margin-top:6px">'
-        f'{dt.datetime.fromtimestamp(meta_b.started_at_unix).strftime("%Y-%m-%d %H:%M:%S")} &nbsp;&middot;&nbsp; '
+        f'{dt.datetime.fromtimestamp(meta_b.started_at_unix).strftime("%d/%m/%Y %H:%M:%S")} &nbsp;&middot;&nbsp; '
         f'{dur_b:.1f}s &nbsp;&middot;&nbsp; {len(samples_b):,} samples</div>'
         f'<div style="color:#4a5568;font-size:0.72rem;font-family:monospace;margin-top:4px">{run_b_id}</div>'
         f'</div>',

@@ -30,7 +30,7 @@ if not runs:
     st.stop()
 
 options = {
-    f"{r.pipeline}  |  {datetime.datetime.fromtimestamp(r.started_at_unix).strftime('%Y-%m-%d %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
+    f"{r.pipeline}  |  {datetime.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
     for r in reversed(runs)
 }
 run_id = options[st.selectbox("Select run", list(options.keys()))]

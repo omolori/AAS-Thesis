@@ -53,7 +53,7 @@ def render(db_path: Path) -> None:
                 unsafe_allow_html=True,
             )
             for r in reversed(runs[-5:]):
-                ts = datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%m-%d %H:%M")
+                ts = datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%d/%m/%Y %H:%M")
                 color = PIPELINE_COLORS.get(r.pipeline, "#7a8fa6")
                 st.markdown(
                     f'<div style="margin-bottom:8px;padding:8px;background:#0E1117;'

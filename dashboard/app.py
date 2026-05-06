@@ -89,7 +89,7 @@ if runs:
     )
     st.markdown(header, unsafe_allow_html=True)
     for r in reversed(runs[-8:]):
-        ts  = datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%Y-%m-%d %H:%M:%S")
+        ts  = datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%d/%m/%Y %H:%M:%S")
         dur = f"{r.ended_at_unix - r.started_at_unix:.1f} s"
         color = PIPELINE_COLORS.get(r.pipeline, "#7a8fa6")
         st.markdown(

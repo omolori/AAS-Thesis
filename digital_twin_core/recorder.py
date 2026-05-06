@@ -200,13 +200,13 @@ def _pg_list_runs(pipeline: str | None) -> list[RunMetadata]:
                 cur.execute(
                     "SELECT run_id, started_at_unix, ended_at_unix, pipeline, host, "
                     "trajectory_name, aas_params_json FROM runs WHERE pipeline = %s "
-                    "ORDER BY started_at_unix",
+                    "ORDER BY started_at_unix DESC",
                     (pipeline,),
                 )
             else:
                 cur.execute(
                     "SELECT run_id, started_at_unix, ended_at_unix, pipeline, host, "
-                    "trajectory_name, aas_params_json FROM runs ORDER BY started_at_unix"
+                    "trajectory_name, aas_params_json FROM runs ORDER BY started_at_unix DESC"
                 )
             return [
                 RunMetadata(
@@ -341,13 +341,13 @@ def list_runs(db_path: Path, pipeline: str | None = None) -> list[RunMetadata]:
             rows = conn.execute(
                 "SELECT run_id, started_at_unix, ended_at_unix, pipeline, host, "
                 "trajectory_name, aas_params_json FROM runs WHERE pipeline = ? "
-                "ORDER BY started_at_unix",
+                "ORDER BY started_at_unix DESC",
                 (pipeline,),
             ).fetchall()
         else:
             rows = conn.execute(
                 "SELECT run_id, started_at_unix, ended_at_unix, pipeline, host, "
-                "trajectory_name, aas_params_json FROM runs ORDER BY started_at_unix",
+                "trajectory_name, aas_params_json FROM runs ORDER BY started_at_unix DESC",
             ).fetchall()
     return [
         RunMetadata(
