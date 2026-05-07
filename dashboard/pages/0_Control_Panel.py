@@ -292,8 +292,10 @@ if run_no_aas or run_both:
         st.error("sim_no_aas failed. See log above.")
 
 if run_aas or run_both:
-    if not _local_server_alive():
+    if aas_source == "local" and not _local_server_alive():
         st.warning("Start the local AAS server first — needed for sim_aas parameter injection.")
+    elif aas_source == "basyx" and not basyx_alive:
+        st.warning("BaSyx server is offline. Switch to 'local' or 'auto', or start the BaSyx server.")
     else:
         st.markdown(f'<div style="color:{ORANGE};font-weight:700;margin-bottom:6px">Running sim_aas  [{aas_source}]...</div>', unsafe_allow_html=True)
         code, lines = _run_script("scripts/run_sim_aas.py", log_area, extra_args=["--source", aas_source])
