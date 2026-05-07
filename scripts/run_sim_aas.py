@@ -99,7 +99,14 @@ def main() -> int:
         # simulation) — not a robot speed. Use our default speed for actual motion
         # and reserve BaSyx values for KPI reporting only.
         trajectory = pick_and_place_trajectory()
-        aas_params = None
+        aas_params = {
+            "_source": "basyx",
+            "_url": basyx.base_url,
+            "robot_move_time": inputs["robot_move_time"],
+            "pick_place_time": inputs["pick_place_time"],
+            "queue_delay":     inputs["queue_delay"],
+            "available_time":  inputs["available_time"],
+        }
         queue_delay = inputs["queue_delay"]
         available_time = inputs["available_time"]
         mode = "basyx"
@@ -115,6 +122,7 @@ def main() -> int:
 
         print(f"AAS source   : local server (BaSyx unreachable)")
         aas_params = local.fetch_simulation_models()
+        aas_params["_source"] = "local"
         print(f"  payload    : {aas_params['payload']['mass_kg']} kg  "
               f"cog={aas_params['payload']['cog']}")
         print(f"  tool_tcp   : {aas_params['tool_tcp']}")

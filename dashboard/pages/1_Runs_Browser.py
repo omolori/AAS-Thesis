@@ -31,13 +31,16 @@ if not runs:
 
 rows = []
 for r in runs:
+    source = ""
+    if r.aas_params_used:
+        source = r.aas_params_used.get("_source", "local")
     rows.append({
         "run_id":      r.run_id,
         "pipeline":    r.pipeline,
+        "aas_source":  source,
         "trajectory":  r.trajectory_name,
         "started_at":  datetime.datetime.fromtimestamp(r.started_at_unix).strftime("%d/%m/%Y %H:%M:%S"),
         "duration_s":  round(r.ended_at_unix - r.started_at_unix, 1),
-        "aas_params":  r.aas_params_used is not None,
     })
 df = pd.DataFrame(rows)
 
@@ -63,10 +66,10 @@ st.dataframe(
     column_config={
         "run_id":     st.column_config.TextColumn("Run ID", width="large"),
         "pipeline":   st.column_config.TextColumn("Pipeline"),
+        "aas_source": st.column_config.TextColumn("AAS Source", help="'local' = local AAS server, 'basyx' = BaSyx server, blank = no AAS"),
         "trajectory": st.column_config.TextColumn("Trajectory"),
         "started_at": st.column_config.TextColumn("Started At"),
         "duration_s": st.column_config.NumberColumn("Duration (s)", format="%.1f"),
-        "aas_params": st.column_config.CheckboxColumn("AAS Params"),
     },
 )
 

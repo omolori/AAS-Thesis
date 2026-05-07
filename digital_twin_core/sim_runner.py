@@ -75,7 +75,8 @@ def execute_trajectory(
         control = RTDEControlInterface(host)
 
         if aas_params is not None:
-            _apply_aas_params(control, aas_params)
+            if aas_params.get("_source") != "basyx":
+                _apply_aas_params(control, aas_params)
 
         receive_client = RTDEClient(host, frequency_hz=rtde_frequency_hz)
         receive_client.connect()

@@ -45,6 +45,15 @@ col4.metric("Sample Rate", f"{len(samples)/dur:.0f} Hz")
 col5.metric("Trajectory",  meta.trajectory_name)
 
 if meta.aas_params_used:
+    source = meta.aas_params_used.get("_source", "local")
+    color  = "#0097b2" if source == "local" else "#ff914d"
+    label  = "Local AAS Server" if source == "local" else f"BaSyx  {meta.aas_params_used.get('_url','')}"
+    st.markdown(
+        f'<span style="color:#7a8fa6;font-size:0.83rem">AAS Source: </span>'
+        f'<span style="background:{color};color:#0E1117;padding:2px 10px;'
+        f'border-radius:4px;font-size:0.78rem;font-weight:700">{label}</span>',
+        unsafe_allow_html=True,
+    )
     with st.expander("AAS parameters used in this run"):
         st.json(meta.aas_params_used)
 
