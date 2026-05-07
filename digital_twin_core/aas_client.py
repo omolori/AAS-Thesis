@@ -215,10 +215,15 @@ class BaSyxClient:
                 f"{self.base_url}/submodels/{_b64url(self.kpi_id)}"
                 f"/submodel-elements/{prop}/$value"
             )
-            r = requests.patch(
-                url,
-                json=value,
-                headers={**self._headers, "Content-Type": "application/json"},
-                timeout=5,
-            )
-            r.raise_for_status()
+            # Try as float first, fall back to string if BaSyx rejects it
+            for payload in [value, str(round(value, 4))]:
+                r = requests.patch(
+                    url,
+                    json=payload,
+                    headers={**self._headers, "Content-Type": "application/json"},
+                    timeout=5,
+                )
+                if r.status_code < 300:
+                    break
+                if r.status_code != 500:
+                    r.raise_for_status()

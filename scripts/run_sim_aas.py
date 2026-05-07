@@ -167,13 +167,17 @@ def main() -> int:
         print(f"  Utilization         : {kpis['utilization_pct']:.1f} %")
         print(f"  ProductionLeadTime  : {kpis['production_lead_time_s']:.1f} s")
         print("\nWriting KPIResults to BaSyx...")
-        basyx.write_kpi_results(
-            cycle_time_s=kpis["cycle_time_s"],
-            throughput_per_hour=kpis["throughput_per_hour"],
-            utilization_pct=kpis["utilization_pct"],
-            production_lead_time_s=kpis["production_lead_time_s"],
-        )
-        print("KPIResults written OK")
+        try:
+            basyx.write_kpi_results(
+                cycle_time_s=kpis["cycle_time_s"],
+                throughput_per_hour=kpis["throughput_per_hour"],
+                utilization_pct=kpis["utilization_pct"],
+                production_lead_time_s=kpis["production_lead_time_s"],
+            )
+            print("KPIResults written OK")
+        except Exception as e:
+            print(f"WARNING: KPI write-back to BaSyx failed: {e}")
+            print("Run data is saved to Supabase — this does not affect the experiment.")
 
     print(f"\nSaved to : {db_path}")
     return 0
