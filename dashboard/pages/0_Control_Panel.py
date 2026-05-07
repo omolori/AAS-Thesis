@@ -69,7 +69,7 @@ def _start_local_server() -> None:
             break
 
 
-def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
+def _run_script(script: str, log_placeholder, extra_args: list[str] | None = None) -> tuple[int, list[str]]:
     import re
 
     lines: list[str] = []
@@ -80,8 +80,9 @@ def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
     progress_slot = st.empty()
     time_slot     = st.empty()
 
+    cmd = [PYTHON, str(PROJECT_ROOT / script)] + (extra_args or [])
     proc = subprocess.Popen(
-        [PYTHON, str(PROJECT_ROOT / script)],
+        cmd,
         cwd=str(PROJECT_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -260,6 +261,16 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### Run Pipelines")
 st.caption("URSim must be running and in Remote Control mode.")
 
+col1, col2 = st.columns([2, 4])
+with col1:
+    aas_source = st.radio(
+        "AAS source for sim_aas",
+        options=["auto", "basyx", "local"],
+        index=0,
+        horizontal=True,
+        help="auto = BaSyx first, local fallback | basyx = BaSyx only | local = local server only",
+    )
+
 col1, col2, col3 = st.columns(3)
 run_no_aas = col1.button("Run sim_no_aas", type="primary", use_container_width=True)
 run_aas    = col2.button("Run sim_aas",    use_container_width=True)
@@ -270,25 +281,22 @@ log_area = st.empty()
 last_runs: list[str] = []
 
 if run_no_aas or run_both:
-    if not _local_server_alive():
-        st.warning("Start the local AAS server first.")
+    st.markdown(f'<div style="color:{TEAL};font-weight:700;margin-bottom:6px">Running sim_no_aas...</div>', unsafe_allow_html=True)
+    code, lines = _run_script("scripts/run_sim_no_aas.py", log_area)
+    if code == 0:
+        run_id = next((l.split(":", 1)[1].strip() for l in lines if "Run completed" in l), None)
+        if run_id:
+            last_runs.append(run_id)
+            st.success(f"sim_no_aas done — `{run_id}`")
     else:
-        st.markdown(f'<div style="color:{TEAL};font-weight:700;margin-bottom:6px">Running sim_no_aas...</div>', unsafe_allow_html=True)
-        code, lines = _run_script("scripts/run_sim_no_aas.py", log_area)
-        if code == 0:
-            run_id = next((l.split(":", 1)[1].strip() for l in lines if "Run completed" in l), None)
-            if run_id:
-                last_runs.append(run_id)
-                st.success(f"sim_no_aas done — `{run_id}`")
-        else:
-            st.error("sim_no_aas failed. See log above.")
+        st.error("sim_no_aas failed. See log above.")
 
 if run_aas or run_both:
     if not _local_server_alive():
-        st.warning("Start the local AAS server first.")
+        st.warning("Start the local AAS server first — needed for sim_aas parameter injection.")
     else:
-        st.markdown(f'<div style="color:{ORANGE};font-weight:700;margin-bottom:6px">Running sim_aas...</div>', unsafe_allow_html=True)
-        code, lines = _run_script("scripts/run_sim_aas.py", log_area)
+        st.markdown(f'<div style="color:{ORANGE};font-weight:700;margin-bottom:6px">Running sim_aas  [{aas_source}]...</div>', unsafe_allow_html=True)
+        code, lines = _run_script("scripts/run_sim_aas.py", log_area, extra_args=["--source", aas_source])
         if code == 0:
             run_id = next((l.split(":", 1)[1].strip() for l in lines if "Run completed" in l), None)
             if run_id:

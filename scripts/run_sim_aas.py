@@ -1,23 +1,14 @@
 """Pipeline 3: execute the canonical trajectory on URSim with AAS parameters.
 
-Tries BaSyx first (bidirectional loop). Falls back to the local AAS server
-if BaSyx is unreachable — so the pipeline always works regardless of whether
-the BaSyx server is running.
-
-BaSyx mode (full loop):
-  1. READ  SimulationInputs from BaSyx  → configure trajectory
-  2. RUN   trajectory on URSim
-  3. WRITE computed KPIs → KPIResults on BaSyx
-
-Local fallback mode:
-  1. READ  SimulationModels from local AAS server  → payload + TCP
-  2. RUN   trajectory on URSim
-
 Usage:
-    python scripts/run_sim_aas.py
+    python scripts/run_sim_aas.py                  # auto: BaSyx first, local fallback
+    python scripts/run_sim_aas.py --source basyx   # BaSyx only (fail if offline)
+    python scripts/run_sim_aas.py --source local   # local AAS server only
+    python scripts/run_sim_aas.py --source auto    # default
 """
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -81,12 +72,24 @@ def _compute_kpis(metadata, samples: list, available_time_s: float) -> dict:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--source",
+        choices=["auto", "basyx", "local"],
+        default="auto",
+        help="AAS server to use: auto (BaSyx first, local fallback), basyx, or local",
+    )
+    args = parser.parse_args()
+
     host = config["ursim"]["host"]
     freq = float(config["ursim"]["rtde_frequency_hz"])
     db_path = PROJECT_ROOT / config["storage"]["db_path"]
 
-    # --- Try BaSyx first ---
-    basyx = _try_basyx()
+    # --- Select AAS source ---
+    use_basyx = args.source in ("auto", "basyx")
+    use_local = args.source in ("auto", "local")
+
+    basyx = _try_basyx() if use_basyx else None
     if basyx:
         print(f"AAS source   : BaSyx  ({basyx.base_url})")
         inputs = basyx.fetch_simulation_inputs()
@@ -112,6 +115,10 @@ def main() -> int:
         mode = "basyx"
 
     else:
+        if not use_local:
+            print("ERROR: BaSyx server is unreachable and --source basyx was specified.")
+            print("Check the BaSyx URL in config/settings.toml or use --source auto.")
+            return 1
         # --- Fall back to local AAS server ---
         local = _try_local_aas()
         if not local:
