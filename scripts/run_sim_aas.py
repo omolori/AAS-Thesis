@@ -2,7 +2,7 @@
 
 Tries BaSyx first (bidirectional loop). Falls back to the local AAS server
 if BaSyx is unreachable — so the pipeline always works regardless of whether
-the colleague's server is running.
+the BaSyx server is running.
 
 BaSyx mode (full loop):
   1. READ  SimulationInputs from BaSyx  → configure trajectory

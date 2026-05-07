@@ -160,7 +160,7 @@ if basyx_alive:
     except Exception:
         pass
 else:
-    st.info("BaSyx server is offline. Ask your colleague to start it.")
+    st.info("BaSyx server is offline. Start the BaSyx server to enable this section.")
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
