@@ -90,30 +90,15 @@ def main() -> int:
     if basyx:
         print(f"AAS source   : BaSyx  ({basyx.base_url})")
         inputs = basyx.fetch_simulation_inputs()
-
-        # RobotMoveTime is stored as seconds in the BaSyx DES model.
-        # Convert to rad/s: speed = typical_joint_distance / time.
-        # Average max joint displacement per move in our trajectory ≈ 1.0 rad.
-        # Clamp to UR3 moveJ valid range (0.01 – 3.14 rad/s).
-        _TYPICAL_JOINT_DIST = 1.0
-        _UR3_MAX_SPEED = 3.14
-        raw = inputs["robot_move_time"]
-        if raw > _UR3_MAX_SPEED:
-            speed = max(0.01, min(_TYPICAL_JOINT_DIST / raw, _UR3_MAX_SPEED))
-            print(f"  RobotMoveTime : {raw} s  →  speed = {speed:.4f} rad/s (converted from time)")
-        else:
-            speed = max(0.01, min(raw, _UR3_MAX_SPEED))
-            print(f"  RobotMoveTime : {raw} rad/s")
-
-        dwell = max(0.0, inputs["pick_place_time"])
+        print(f"  RobotMoveTime : {inputs['robot_move_time']} s  (DES parameter, used for KPI calc only)")
         print(f"  PickPlaceTime : {inputs['pick_place_time']} s")
         print(f"  QueueDelay    : {inputs['queue_delay']} s")
         print(f"  AvailableTime : {inputs['available_time']} s")
 
-        trajectory = pick_and_place_trajectory(
-            speed_rad_s=speed,
-            dwell_s=dwell,
-        )
+        # RobotMoveTime is a DES abstraction (seconds per move in a manufacturing
+        # simulation) — not a robot speed. Use our default speed for actual motion
+        # and reserve BaSyx values for KPI reporting only.
+        trajectory = pick_and_place_trajectory()
         aas_params = None
         queue_delay = inputs["queue_delay"]
         available_time = inputs["available_time"]
