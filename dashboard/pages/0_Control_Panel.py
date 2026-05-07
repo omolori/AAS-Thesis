@@ -70,7 +70,16 @@ def _start_local_server() -> None:
 
 
 def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
+    import re
+
     lines: list[str] = []
+    n_cycles = 3  # default; updated from log if found
+
+    # UI slots
+    status_slot   = st.empty()
+    progress_slot = st.empty()
+    time_slot     = st.empty()
+
     proc = subprocess.Popen(
         [PYTHON, str(PROJECT_ROOT / script)],
         cwd=str(PROJECT_ROOT),
@@ -79,11 +88,66 @@ def _run_script(script: str, log_placeholder) -> tuple[int, list[str]]:
         text=True,
         bufsize=1,
     )
+
+    t_start = time.time()
+    current_cycle = 0
+    stage = "Connecting..."
+
     for line in iter(proc.stdout.readline, ""):
         lines.append(line)
-        log_placeholder.code("".join(lines[-60:]), language="bash")
+        elapsed = time.time() - t_start
+
+        # Parse log line for stage/progress
+        if "Connecting to" in line:
+            stage = "Connecting to URSim..."
+        elif m := re.search(r"Cycle (\d+)/(\d+)", line):
+            current_cycle = int(m.group(1))
+            n_cycles      = int(m.group(2))
+            stage = f"Cycle {current_cycle} / {n_cycles} — robot moving"
+        elif "Saving run" in line:
+            stage = "Uploading to database..."
+            current_cycle = n_cycles
+        elif "Run completed" in line:
+            stage = "Done"
+
+        # Update UI
+        status_slot.markdown(
+            f'<div style="display:flex;align-items:center;gap:12px;'
+            f'background:#161C27;border:1px solid #232B3B;border-radius:8px;'
+            f'padding:10px 16px;margin-bottom:4px">'
+            f'<div style="color:#0097b2;font-size:1.1rem">&#9654;</div>'
+            f'<div style="color:#ccd7e2;font-weight:600">{stage}</div>'
+            f'<div style="color:#7a8fa6;font-size:0.83rem;margin-left:auto">'
+            f'Elapsed: {elapsed:.0f}s</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        progress_slot.progress(
+            min(current_cycle / n_cycles, 1.0),
+            text=f"Cycle {current_cycle}/{n_cycles}",
+        )
+        log_placeholder.code("".join(lines[-40:]), language="bash")
+
     proc.stdout.close()
     proc.wait()
+
+    # Final state
+    if proc.returncode == 0:
+        status_slot.markdown(
+            f'<div style="display:flex;align-items:center;gap:12px;'
+            f'background:#161C27;border:1px solid #232B3B;border-left:3px solid {GREEN};'
+            f'border-radius:8px;padding:10px 16px">'
+            f'<div style="color:{GREEN};font-weight:700">Complete</div>'
+            f'<div style="color:#7a8fa6;font-size:0.83rem;margin-left:auto">'
+            f'{time.time()-t_start:.1f}s total</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        progress_slot.progress(1.0, text="Complete")
+    else:
+        status_slot.error("Pipeline failed — see log below")
+        progress_slot.empty()
+
     return proc.returncode, lines
 
 
