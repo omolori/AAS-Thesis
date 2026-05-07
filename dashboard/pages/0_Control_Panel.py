@@ -233,6 +233,40 @@ st.markdown("<hr>", unsafe_allow_html=True)
 # SECTION 2 — Local Pipeline (local only)
 # ===========================================================================
 st.markdown("## Local Pipeline")
+
+def _is_local() -> bool:
+    """True if the dashboard can reach localhost — i.e. running on the user's machine."""
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.3)
+        s.connect(("127.0.0.1", AAS_PORT))
+        s.close()
+        return True
+    except Exception:
+        pass
+    # Also true if the local server is simply stopped but localhost exists
+    try:
+        import socket
+        socket.gethostbyname("localhost")
+        return True
+    except Exception:
+        return False
+
+# Detect cloud by checking if ur_rtde can be imported
+try:
+    import importlib.util
+    _on_cloud = importlib.util.find_spec("rtde_control") is None
+except Exception:
+    _on_cloud = False
+
+if _on_cloud:
+    st.info(
+        "Pipeline execution requires URSim running on your local machine.  \n"
+        "Run `streamlit run dashboard/app.py` on your laptop to use these controls."
+    )
+    st.stop()
+
 st.markdown(
     '<div style="color:#7a8fa6;font-size:0.85rem;margin-bottom:12px">'
     'Only works when this dashboard is running locally on the same machine as URSim.</div>',
