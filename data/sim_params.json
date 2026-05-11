@@ -1,9 +1,9 @@
 {
   "payload": {
-    "mass_kg": 0.8,
+    "mass_kg": 0.0,
     "cog_x_m": 0.0,
     "cog_y_m": 0.0,
-    "cog_z_m": 0.06
+    "cog_z_m": 0.0
   },
   "tool_tcp": {
     "x_m": 0.0,

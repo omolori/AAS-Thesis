@@ -111,6 +111,7 @@ def _pg_init() -> None:
 
 
 def _pg_save_run(metadata: RunMetadata, samples: list[RobotSample]) -> None:
+    from psycopg2.extras import execute_values
     _pg_init()
     with _pg_conn() as conn:
         with conn.cursor() as cur:
@@ -132,14 +133,15 @@ def _pg_save_run(metadata: RunMetadata, samples: list[RobotSample]) -> None:
                     json.dumps(metadata.aas_params_used) if metadata.aas_params_used is not None else None,
                 ),
             )
-            cur.executemany(
+            execute_values(
+                cur,
                 """
                 INSERT INTO samples
                     (run_id, sample_idx, wall_time, controller_timestamp,
                      actual_q_json, actual_qd_json, actual_tcp_pose_json,
                      actual_tcp_speed_json, actual_current_json, target_q_json,
                      runtime_state)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES %s
                 ON CONFLICT DO NOTHING
                 """,
                 [
@@ -153,6 +155,7 @@ def _pg_save_run(metadata: RunMetadata, samples: list[RobotSample]) -> None:
                     )
                     for idx, s in enumerate(samples)
                 ],
+                page_size=1000,
             )
         conn.commit()
 

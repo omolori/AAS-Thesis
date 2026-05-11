@@ -10,7 +10,7 @@ rtde_frequency_hz = 125          # 1..500 Hz; 125 is plenty for trajectory compa
 
 [real_robot]
 # IP address of the physical UR3 in the lab.
-host = "192.168.1.101"          # CHANGE THIS when you're in the lab
+host = "192.168.0.106"          # UR3 lab robot IP
 rtde_port = 30004
 rtde_frequency_hz = 125
 
