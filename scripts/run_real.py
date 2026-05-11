@@ -60,6 +60,26 @@ def main() -> int:
         dest="confirmed",
         help="Confirm you are in the lab and the robot area is safe.",
     )
+    parser.add_argument(
+        "--no-gripper",
+        action="store_true",
+        dest="no_gripper",
+        help="Skip gripper commands (use when RG2 is not attached).",
+    )
+    parser.add_argument(
+        "--grip-width",
+        type=float,
+        default=0.0,
+        metavar="MM",
+        help="Gripper closing width in mm (default: 0 = fully closed).",
+    )
+    parser.add_argument(
+        "--grip-force",
+        type=float,
+        default=20.0,
+        metavar="N",
+        help="Gripping force in Newtons, 3–40 (default: 20).",
+    )
     args = parser.parse_args()
 
     print(_BANNER)
@@ -74,9 +94,19 @@ def main() -> int:
     db_path = PROJECT_ROOT / config["storage"]["db_path"]
 
     trajectory = pick_and_place_trajectory()
+    gripper_config = (
+        None
+        if args.no_gripper
+        else {"grip_width_mm": args.grip_width, "force_n": args.grip_force}
+    )
+
     print(f"Trajectory  : {trajectory.name}  ({trajectory.n_cycles} cycles)")
     print(f"Robot host  : {host}")
     print(f"Pipeline    : real")
+    if gripper_config:
+        print(f"Gripper     : RG2  width={args.grip_width:.0f} mm  force={args.grip_force:.0f} N")
+    else:
+        print(f"Gripper     : disabled (--no-gripper)")
     print()
 
     metadata, samples = execute_trajectory(
@@ -85,6 +115,7 @@ def main() -> int:
         pipeline="real",
         aas_params=None,
         rtde_frequency_hz=freq,
+        gripper_config=gripper_config,
         i_understand_this_moves_a_real_robot=True,
     )
 

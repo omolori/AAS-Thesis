@@ -25,6 +25,7 @@ except ImportError as exc:
 
 from config_loader import config
 from data_acquisition.rtde_client import RTDEClient, RobotSample
+from digital_twin_core.gripper import RG2Gripper
 from digital_twin_core.recorder import RunMetadata
 from digital_twin_core.trajectory import Trajectory
 
@@ -38,6 +39,7 @@ def execute_trajectory(
     aas_params: dict | None = None,
     rtde_frequency_hz: float = 125.0,
     queue_delay_s: float = 0.0,
+    gripper_config: dict | None = None,
     *,
     i_understand_this_moves_a_real_robot: bool = False,
 ) -> tuple[RunMetadata, list[RobotSample]]:
@@ -55,6 +57,10 @@ def execute_trajectory(
     explicit override keyword argument.
     """
     _check_real_robot_guard(host, i_understand_this_moves_a_real_robot)
+
+    # gripper_config keys: grip_width_mm, force_n, open_width_mm, settle_s
+    # The RG2Gripper is constructed after RTDEControlInterface connects so
+    # both share the same underlying connection — no second interface needed.
 
     run_id = uuid.uuid4().hex
     samples: list[RobotSample] = []
@@ -74,6 +80,12 @@ def execute_trajectory(
     try:
         control = RTDEControlInterface(host)
 
+        gripper: RG2Gripper | None = (
+            RG2Gripper(control, **(gripper_config or {}))
+            if gripper_config is not None
+            else None
+        )
+
         if aas_params is not None:
             if aas_params.get("_source") != "basyx":
                 _apply_aas_params(control, aas_params)
@@ -90,6 +102,9 @@ def execute_trajectory(
 
         started_at = time.time()
 
+        if gripper is not None:
+            gripper.open()
+
         for cycle_num in range(trajectory.n_cycles):
             log.info("Cycle %d/%d", cycle_num + 1, trajectory.n_cycles)
             for wp in trajectory.waypoints:
@@ -100,6 +115,12 @@ def execute_trajectory(
                     trajectory.accel_rad_s2,
                     asynchronous=False,  # block until waypoint reached
                 )
+                if gripper is not None:
+                    if wp.name == "pick":
+                        gripper.close()
+                    elif wp.name == "place":
+                        gripper.open()
+
                 if wp.dwell_s > 0.0:
                     log.debug("  dwell %.2f s at %s", wp.dwell_s, wp.name)
                     time.sleep(wp.dwell_s)
