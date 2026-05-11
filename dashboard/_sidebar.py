@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
-from dashboard.styles import pipeline_badge, PIPELINE_COLORS
+from dashboard.styles import pipeline_badge, PIPELINE_COLORS, PIPELINE_LABELS
 
 
 def render(db_path: Path) -> None:
@@ -59,7 +59,7 @@ def render(db_path: Path) -> None:
                     f'<div style="margin-bottom:8px;padding:8px;background:#0E1117;'
                     f'border-radius:6px;border:1px solid #232B3B">'
                     f'<div style="font-size:0.75rem;color:{color};font-weight:700">'
-                    f'{r.pipeline}</div>'
+                    f'{PIPELINE_LABELS.get(r.pipeline, r.pipeline)}</div>'
                     f'<div style="font-size:0.72rem;color:#7a8fa6;margin:2px 0">{ts}</div>'
                     f'<div style="font-size:0.7rem;color:#4a5568;font-family:monospace;'
                     f'word-break:break-all">{r.run_id}</div>'

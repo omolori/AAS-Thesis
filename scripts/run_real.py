@@ -45,7 +45,7 @@ _BANNER = """
 ║    2. The e-stop is within reach and tested.                 ║
 ║    3. You are physically present in the lab.                 ║
 ║                                                              ║
-║  Run with --yes-i-am-in-the-lab to proceed.                  ║
+║  Run with --lab to proceed.                                  ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 
@@ -55,7 +55,7 @@ def main() -> int:
         description="Execute the canonical trajectory on the physical UR3."
     )
     parser.add_argument(
-        "--yes-i-am-in-the-lab",
+        "--lab",
         action="store_true",
         dest="confirmed",
         help="Confirm you are in the lab and the robot area is safe.",
@@ -65,7 +65,7 @@ def main() -> int:
     print(_BANNER)
 
     if not args.confirmed:
-        print("Refusing to run without --yes-i-am-in-the-lab.")
+        print("Refusing to run without --lab.")
         print("This is a safety guard, not a bug.")
         return 1
 

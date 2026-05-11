@@ -15,7 +15,7 @@ from digital_twin_core.comparator import compare_runs, write_comparison_csv, _al
 from dashboard.styles import (
     inject_css, apply_plot_style,
     COLOR_A, COLOR_B, JOINT_COLORS, PIPELINE_COLORS,
-    pipeline_badge, CARD_BG, BORDER, YELLOW,
+    pipeline_badge, CARD_BG, BORDER, YELLOW, run_label,
 )
 from dashboard._sidebar import render as render_sidebar
 
@@ -34,7 +34,7 @@ if len(runs) < 2:
     st.stop()
 
 options = {
-    f"{r.pipeline}  |  {dt.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
+    run_label(r.pipeline, dt.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S'), r.run_id): r.run_id
     for r in reversed(runs)
 }
 labels     = list(options.keys())

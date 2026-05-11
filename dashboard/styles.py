@@ -133,13 +133,27 @@ def inject_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
 
 
+PIPELINE_LABELS = {
+    "sim_no_aas": "URSim — No AAS",
+    "sim_aas":    "URSim — AAS",
+    "real":       "Real UR3",
+}
+
+
 def pipeline_badge(pipeline: str) -> str:
     color = PIPELINE_COLORS.get(pipeline, GREY)
+    label = PIPELINE_LABELS.get(pipeline, pipeline)
     return (
         f'<span style="background:{color};color:#0E1117;padding:2px 10px;'
         f'border-radius:4px;font-size:0.78rem;font-weight:700;'
-        f'letter-spacing:0.05em">{pipeline}</span>'
+        f'letter-spacing:0.05em">{label}</span>'
     )
+
+
+def run_label(pipeline: str, timestamp: str, run_id: str) -> str:
+    """Human-readable label for run selector dropdowns."""
+    label = PIPELINE_LABELS.get(pipeline, pipeline)
+    return f"[{label}]  {timestamp}  |  {run_id[:14]}"
 
 
 def section_header(title: str, subtitle: str = "") -> None:

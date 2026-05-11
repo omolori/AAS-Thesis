@@ -12,7 +12,7 @@ import numpy as np
 from config_loader import config
 from digital_twin_core.recorder import list_runs, load_run
 from digital_twin_core.comparator import _detect_cycle_times
-from dashboard.styles import inject_css, apply_plot_style, JOINT_COLORS, CARD_BG, BORDER, TEAL, YELLOW
+from dashboard.styles import inject_css, apply_plot_style, JOINT_COLORS, CARD_BG, BORDER, TEAL, YELLOW, run_label
 from dashboard._sidebar import render as render_sidebar
 
 st.set_page_config(page_title="Run Inspector", layout="wide")
@@ -30,7 +30,7 @@ if not runs:
     st.stop()
 
 options = {
-    f"{r.pipeline}  |  {datetime.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S')}  |  {r.run_id[:16]}": r.run_id
+    run_label(r.pipeline, datetime.datetime.fromtimestamp(r.started_at_unix).strftime('%d/%m/%Y %H:%M:%S'), r.run_id): r.run_id
     for r in reversed(runs)
 }
 run_id = options[st.selectbox("Select run", list(options.keys()))]
