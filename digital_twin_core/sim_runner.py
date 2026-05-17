@@ -81,7 +81,7 @@ def execute_trajectory(
         control = RTDEControlInterface(host)
 
         gripper: RG2Gripper | None = (
-            RG2Gripper(control, **(gripper_config or {}))
+            RG2Gripper(host, **(gripper_config or {}))
             if gripper_config is not None
             else None
         )
@@ -113,7 +113,7 @@ def execute_trajectory(
                     list(wp.joint_positions_rad),
                     trajectory.speed_rad_s,
                     trajectory.accel_rad_s2,
-                    asynchronous=False,  # block until waypoint reached
+                    asynchronous=False,
                 )
                 if gripper is not None:
                     if wp.name == "pick":

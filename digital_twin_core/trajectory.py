@@ -27,28 +27,36 @@ class Trajectory:
 
 
 def pick_and_place_trajectory(
-    speed_rad_s: float = 0.4,
-    accel_rad_s2: float = 0.3,
+    speed_rad_s: float = 0.2,
+    accel_rad_s2: float = 0.15,
     dwell_s: float = 0.5,
     n_cycles: int = 3,
 ) -> Trajectory:
-    """6-waypoint pick-and-place task recorded from the physical UR3 in the lab.
+    """8-waypoint pick-and-place task recorded from the physical UR3 with gripper.
 
-    Waypoints were jogged manually on the pendant and converted from degrees.
-    Speed reduced to 0.4 rad/s for safety (robot reaches near table surface).
+    Passes back through the approach (pre_pick / pre_place) waypoints on the
+    way up so the gripper never drags across the table surface.
 
-    Parameters can be overridden by AAS SimulationInputs values so the
-    BaSyx server controls the trajectory without code changes.
+    Waypoints jogged manually on the pendant, converted from degrees.
+    TCP Z=0.241 m calibrated via 4-point method in PolyScope.
     """
+    _HOME      = (-1.4561, -1.6660, -0.2774, -2.0748,  1.6275, -0.1098)
+    _PRE_PICK  = (-1.3320, -1.8503, -1.7179, -1.1217,  1.5566,  0.2009)
+    _PICK      = (-1.3428, -2.1051, -1.9055, -0.6799,  1.5585,  0.1948)
+    _PRE_PLACE = (-1.1077, -1.9063, -1.7017, -1.0908,  1.6046,  0.4865)
+    _PLACE     = (-1.1074, -2.1273, -1.8539, -0.7185,  1.6065,  0.4822)
+
     return Trajectory(
         name="pick_and_place",
         waypoints=(
-            Waypoint("home",      (-1.4144, -1.7048,  0.0340, -2.6787,  1.3570, 0.0625), dwell_s=0.0),
-            Waypoint("pre_pick",  (-1.1088, -2.7752, -0.7957, -1.2708,  1.5778, 0.0630), dwell_s=0.0),
-            Waypoint("pick",      (-1.1236, -3.4332, -0.3742, -0.8439,  1.6439, 0.0632), dwell_s=dwell_s),
-            Waypoint("pre_place", (-1.5509, -2.8140, -0.3740, -1.4996,  1.6013, 0.0628), dwell_s=0.0),
-            Waypoint("place",     (-1.5601, -3.4811, -0.1011, -1.1549,  1.5778, 0.0628), dwell_s=dwell_s),
-            Waypoint("home",      (-1.4144, -1.7048,  0.0340, -2.6787,  1.3570, 0.0625), dwell_s=0.0),
+            Waypoint("home",      _HOME),
+            Waypoint("pre_pick",  _PRE_PICK),
+            Waypoint("pick",      _PICK,      dwell_s=dwell_s),
+            Waypoint("pre_pick",  _PRE_PICK),
+            Waypoint("pre_place", _PRE_PLACE),
+            Waypoint("place",     _PLACE,     dwell_s=dwell_s),
+            Waypoint("pre_place", _PRE_PLACE),
+            Waypoint("home",      _HOME),
         ),
         speed_rad_s=speed_rad_s,
         accel_rad_s2=accel_rad_s2,
