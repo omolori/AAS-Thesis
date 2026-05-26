@@ -4,7 +4,7 @@
 [ursim]
 # IP address of the URSim VM. Find it inside URSim with `ifconfig`.
 # Confirmed reachable from Tomas's Windows host on 2026-04-25.
-host = "192.168.233.128"
+host = "192.168.32.5"
 rtde_port = 30004
 rtde_frequency_hz = 125          # 1..500 Hz; 125 is plenty for trajectory comparison
 
