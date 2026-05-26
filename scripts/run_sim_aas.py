@@ -55,19 +55,22 @@ def _try_local_aas() -> AASClient | None:
     return client if client.is_alive() else None
 
 
-def _compute_kpis(metadata, samples: list, available_time_s: float) -> dict:
+def _compute_kpis(metadata, samples: list) -> dict:
     t = np.array([s.wall_time - metadata.started_at_unix for s in samples])
     q = np.array([s.actual_q for s in samples])
+    cur = np.array([s.actual_current for s in samples])
     cycle_times = _detect_cycle_times(t, q)
     mean_ct = float(np.mean(cycle_times)) if cycle_times else 0.0
-    throughput = 3600.0 / mean_ct if mean_ct > 0 else 0.0
-    utilization = (sum(cycle_times) / available_time_s * 100.0) if available_time_s > 0 else 0.0
+    duration = metadata.ended_at_unix - metadata.started_at_unix
+    rms_per_joint = [float(np.sqrt(np.mean(cur[:, j] ** 2))) for j in range(6)]
+    rms_combined = float(np.mean(rms_per_joint))
+    energy_j = float(sum(rms_per_joint) * duration)
     return {
-        "cycle_time_s":           mean_ct,
-        "throughput_per_hour":    throughput,
-        "utilization_pct":        utilization,
-        "production_lead_time_s": metadata.ended_at_unix - metadata.started_at_unix,
-        "cycle_times_list":       cycle_times,
+        "cycle_time_s":        mean_ct,
+        "rms_current_a":       rms_combined,
+        "energy_consumption_j": energy_j,
+        "position_error_m":    0.0,
+        "cycle_times_list":    cycle_times,
     }
 
 
@@ -93,25 +96,28 @@ def main() -> int:
     if basyx:
         print(f"AAS source   : BaSyx  ({basyx.base_url})")
         inputs = basyx.fetch_simulation_inputs()
-        print(f"  RobotMoveTime : {inputs['robot_move_time']} s  (DES parameter, used for KPI calc only)")
-        print(f"  PickPlaceTime : {inputs['pick_place_time']} s")
-        print(f"  QueueDelay    : {inputs['queue_delay']} s")
-        print(f"  AvailableTime : {inputs['available_time']} s")
+        print(f"  PayloadMass   : {inputs['payload_mass_kg']} kg")
+        print(f"  SpeedScaling  : {inputs['speed_scaling']}")
 
-        # RobotMoveTime is a DES abstraction (seconds per move in a manufacturing
-        # simulation) — not a robot speed. Use our default speed for actual motion
-        # and reserve BaSyx values for KPI reporting only.
+        from config_loader import config as _cfg
+        from digital_twin_core.sim_params import load as _load_params
+        _p = _load_params(PROJECT_ROOT / "data" / "sim_params.json")
+        _tcp = _p["tool_tcp"]
+
         trajectory = pick_and_place_trajectory()
         aas_params = {
             "_source": "basyx",
             "_url": basyx.base_url,
-            "robot_move_time": inputs["robot_move_time"],
-            "pick_place_time": inputs["pick_place_time"],
-            "queue_delay":     inputs["queue_delay"],
-            "available_time":  inputs["available_time"],
+            "payload": {
+                "mass_kg": inputs["payload_mass_kg"],
+                "cog": [0.0, 0.0, 0.0],
+            },
+            "tool_tcp": [
+                _tcp["x_m"], _tcp["y_m"], _tcp["z_m"],
+                _tcp["rx"],  _tcp["ry"],  _tcp["rz"],
+            ],
         }
-        queue_delay = inputs["queue_delay"]
-        available_time = inputs["available_time"]
+        queue_delay = 0.0
         mode = "basyx"
 
     else:
@@ -160,24 +166,24 @@ def main() -> int:
 
     # Write KPIs back to BaSyx if we used it
     if mode == "basyx":
-        kpis = _compute_kpis(metadata, samples, available_time)
+        kpis = _compute_kpis(metadata, samples)
         print(f"\nKPIs:")
-        print(f"  CycleTime           : {kpis['cycle_time_s']:.3f} s")
-        print(f"  Throughput          : {kpis['throughput_per_hour']:.1f} cycles/hour")
-        print(f"  Utilization         : {kpis['utilization_pct']:.1f} %")
-        print(f"  ProductionLeadTime  : {kpis['production_lead_time_s']:.1f} s")
-        print("\nWriting KPIResults to BaSyx...")
+        print(f"  CycleTime          : {kpis['cycle_time_s']:.3f} s")
+        print(f"  RMSCurrent         : {kpis['rms_current_a']:.3f} A")
+        print(f"  EnergyConsumption  : {kpis['energy_consumption_j']:.1f} J")
+        print(f"  PositionError      : {kpis['position_error_m']:.4f} m")
+        print("\nWriting PerformanceKPIs to BaSyx...")
         try:
             basyx.write_kpi_results(
                 cycle_time_s=kpis["cycle_time_s"],
-                throughput_per_hour=kpis["throughput_per_hour"],
-                utilization_pct=kpis["utilization_pct"],
-                production_lead_time_s=kpis["production_lead_time_s"],
+                rms_current_a=kpis["rms_current_a"],
+                energy_consumption_j=kpis["energy_consumption_j"],
+                position_error_m=kpis["position_error_m"],
             )
-            print("KPIResults written OK")
+            print("PerformanceKPIs written OK")
         except Exception as e:
             print(f"WARNING: KPI write-back to BaSyx failed: {e}")
-            print("Run data is saved to Supabase — this does not affect the experiment.")
+            print("Run data is saved to database — this does not affect the experiment.")
 
     print(f"\nSaved to : {db_path}")
     return 0

@@ -170,14 +170,12 @@ class BaSyxClient:
         return False
 
     def fetch_simulation_inputs(self) -> dict:
-        """Read SimulationInputs submodel and return trajectory parameters.
+        """Read MotionCommand submodel and return simulation parameters.
 
         Returns:
             {
-                "robot_move_time":  float,  # speed_rad_s for moveJ
-                "pick_place_time":  float,  # dwell_s at pick and place
-                "queue_delay":      float,  # pause between cycles (s)
-                "available_time":   float,  # shift available time (s)
+                "payload_mass_kg": float,  # mass to apply via setPayload
+                "speed_scaling":   float,  # 0..1 multiplier on default trajectory speed
             }
         """
         def _get(prop: str) -> float:
@@ -190,25 +188,23 @@ class BaSyxClient:
             return float(r.json()["value"])
 
         return {
-            "robot_move_time": _get("RobotMoveTime"),
-            "pick_place_time": _get("PickPlaceTime"),
-            "queue_delay":     _get("QueueDelay"),
-            "available_time":  _get("AvailableTime"),
+            "payload_mass_kg": _get("PayloadMass"),
+            "speed_scaling":   _get("SpeedScaling"),
         }
 
     def write_kpi_results(
         self,
         cycle_time_s: float,
-        throughput_per_hour: float,
-        utilization_pct: float,
-        production_lead_time_s: float,
+        rms_current_a: float,
+        energy_consumption_j: float,
+        position_error_m: float,
     ) -> None:
-        """PATCH KPIResults submodel with computed values."""
+        """PATCH PerformanceKPIs submodel with computed values."""
         kpis = {
-            "CycleTime":           cycle_time_s,
-            "Throughput":          throughput_per_hour,
-            "Utilization":         utilization_pct,
-            "ProductionLeadTime":  production_lead_time_s,
+            "CycleTime":          cycle_time_s,
+            "RMSCurrent":         rms_current_a,
+            "EnergyConsumption":  energy_consumption_j,
+            "PositionError":      position_error_m,
         }
         for prop, value in kpis.items():
             url = (

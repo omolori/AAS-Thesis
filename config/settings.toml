@@ -38,6 +38,6 @@ use_ngrok  = true
 
 # IDs of the three submodels on the BaSyx server.
 aas_id                  = "urn:ur3:simulation:1"
-submodel_inputs_id      = "urn:ur3:simulationinputs:1"
-submodel_kpi_id         = "urn:ur3:kpiresults:1"
+submodel_inputs_id      = "urn:ur3:motioncommand:1"
+submodel_kpi_id         = "urn:ur3:performancekpis:1"
 submodel_model_id       = "urn:ur3:simulationmodel:1"

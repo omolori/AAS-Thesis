@@ -198,17 +198,13 @@ if basyx_alive:
         inputs = basyx.fetch_simulation_inputs()
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown("#### Simulation Inputs")
-            st.metric("RobotMoveTime", f"{inputs['robot_move_time']} s",
-                      help="Target move time per waypoint (seconds)")
-            st.metric("PickPlaceTime", f"{inputs['pick_place_time']} s",
-                      help="Dwell time at pick and place positions")
-            st.metric("QueueDelay",   f"{inputs['queue_delay']} s",
-                      help="Pause between cycles")
-            st.metric("AvailableTime",f"{inputs['available_time']} s",
-                      help="Total available production time for utilization calculation")
+            st.markdown("#### Motion Command")
+            st.metric("PayloadMass",  f"{inputs['payload_mass_kg']} kg",
+                      help="Tool mass applied via setPayload before each sim_aas run")
+            st.metric("SpeedScaling", f"{inputs['speed_scaling']}",
+                      help="Speed scaling factor (0..1) applied to the default trajectory speed")
     except Exception as e:
-        st.warning(f"Could not read SimulationInputs: {e}")
+        st.warning(f"Could not read MotionCommand: {e}")
 
     # Show last KPI results
     try:
@@ -217,11 +213,11 @@ if basyx_alive:
         if r.status_code == 200:
             kpis = r.json()
             with col2:
-                st.markdown("#### Last KPI Results")
-                st.metric("CycleTime",          f"{float(kpis.get('CycleTime', 0)):.2f} s")
-                st.metric("Throughput",         f"{float(kpis.get('Throughput', 0)):.2f} cycles/hr")
-                st.metric("Utilization",        f"{float(kpis.get('Utilization', 0)):.1f} %")
-                st.metric("ProductionLeadTime", f"{float(kpis.get('ProductionLeadTime', 0)):.2f} s")
+                st.markdown("#### Last Performance KPIs")
+                st.metric("CycleTime",         f"{float(kpis.get('CycleTime', 0)):.2f} s")
+                st.metric("RMSCurrent",        f"{float(kpis.get('RMSCurrent', 0)):.3f} A")
+                st.metric("EnergyConsumption", f"{float(kpis.get('EnergyConsumption', 0)):.1f} J")
+                st.metric("PositionError",     f"{float(kpis.get('PositionError', 0))*1000:.3f} mm")
     except Exception:
         pass
 else:
