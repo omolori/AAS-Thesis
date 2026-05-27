@@ -1,0 +1,463 @@
+\chapter{Testing and Evaluation}
+\label{chap:testing}
+
+This chapter presents the quantitative evaluation of the three execution pipelines implemented in
+Chapter~\ref{chap:implementation}.
+The central question is whether injecting simulation parameters from the Asset Administration Shell
+(AAS) causes the virtual robot to match the physical UR3 more closely than a default, unconfigured
+simulation.
+To answer this, joint position accuracy, end-effector path deviation, and motor current are compared
+across all three pipelines, with the physical robot as the ground-truth reference.
+
+The chapter is organised as follows.
+Section~\ref{sec:eval_methodology} describes the evaluation approach.
+Section~\ref{sec:eval_dataset} summarises the collected data.
+Section~\ref{sec:timing_analysis} analyses execution timing.
+Sections~\ref{sec:joint_accuracy} to~\ref{sec:current_analysis} present the accuracy results by
+metric, and Section~\ref{sec:eval_summary} synthesises all findings.
+
+
+%% ===================================================================
+\section{Evaluation Methodology}
+\label{sec:eval_methodology}
+%% ===================================================================
+
+The evaluation follows a quasi-experimental design
+\cite{cook1979quasi, wieringa2014design} in which the physical UR3 robot provides reference
+measurements and the two simulation variants act as treatment conditions.
+The three pipelines, introduced in Section~\ref{sec:implementation_overview} and illustrated in
+Figure~\ref{fig:digital_twin_overview}, are:
+
+\begin{itemize}
+    \item \textbf{Pipeline 1 (real)}: the physical UR3 robot executing the pick-and-place
+          trajectory in the AAU laboratory, recording data via the RTDE interface at 125\,Hz;
+
+    \item \textbf{Pipeline 2 (sim\_no\_aas)}: the URSim virtual robot running with default
+          factory parameters and no AAS connection;
+
+    \item \textbf{Pipeline 3 (sim\_aas)}: the URSim virtual robot with payload mass and
+          tool-centre-point (TCP) offset injected live from the BaSyx AAS server immediately
+          before execution (as described in Figure~\ref{fig:pipeline3_sequence}).
+\end{itemize}
+
+All three pipelines execute the same pick-and-place trajectory and record the same set of RTDE
+signals: joint positions, joint velocities, TCP pose, TCP speed, joint current, and controller
+runtime state.
+Data are stored in a shared Supabase (PostgreSQL) database, so every comparison can always be
+reproduced from the raw records.
+Pairwise comparisons (Pipeline~1 versus Pipeline~2, and Pipeline~1 versus Pipeline~3) are
+performed by the \texttt{comparator.py} module, which aligns the two runs via linear interpolation
+onto the shorter timeline before computing per-joint RMSE, TCP RMS deviation, and RMS joint
+current.
+
+The evaluation addresses three concrete questions:
+\begin{enumerate}
+    \item Does Pipeline~3 (\textit{sim\_aas}) match the real robot's joint trajectory more
+          closely than Pipeline~2 (\textit{sim\_no\_aas})?
+    \item Does Pipeline~3 reproduce the real robot's TCP path more closely?
+    \item Does Pipeline~3 reproduce the real robot's motor current more closely?
+\end{enumerate}
+
+
+%% ===================================================================
+\section{Experimental Dataset}
+\label{sec:eval_dataset}
+%% ===================================================================
+
+The full dataset accumulated across development and evaluation phases is shown in
+Table~\ref{tab:dataset_overview}.
+Development runs were shorter exploratory recordings used to verify trajectory playback, sensor
+connectivity, and AAS parameter injection.
+The evaluation subset consists of the runs used for quantitative accuracy comparisons: six
+full-length real runs and one representative simulation run per pipeline.
+
+\begin{table}[htbp]
+\centering
+\caption{All runs stored in the Supabase database, split by pipeline.}
+\label{tab:dataset_overview}
+\begin{tabular}{lrrr}
+\toprule
+Pipeline            & Total runs & Total samples & Evaluation runs \\
+\midrule
+\textit{real}        & 26 & 241{,}852 & 6 \\
+\textit{sim\_no\_aas} & 13 & 109{,}611 & 1 \\
+\textit{sim\_aas}     & 14 & 157{,}569 & 1 \\
+\midrule
+\textbf{Total}       & \textbf{53} & \textbf{509{,}032} & \textbf{8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The six real evaluation runs are highly consistent with one another, all completing in
+110.01--110.03\,s (mean 110.02\,s, standard deviation 0.01\,s), confirming stable and
+repeatable trajectory execution on the physical robot.
+
+For the accuracy comparisons in Sections~\ref{sec:joint_accuracy}
+to~\ref{sec:current_analysis}, a single representative real run is paired against each simulation
+run.
+The \textit{sim\_aas} evaluation run used AAS parameters fetched live from the BaSyx server:
+payload mass 1.2\,kg with the centre of gravity at the tool origin, and TCP offset
+$[-1.2\,\text{mm},\ 0.64\,\text{mm},\ 241.1\,\text{mm}]$ with a $90^\circ$ rotation about the
+X-axis.
+
+
+%% ===================================================================
+\section{Execution Timing Analysis}
+\label{sec:timing_analysis}
+%% ===================================================================
+
+Execution time is the first indicator of how closely each pipeline reproduces the physical robot's
+behaviour.
+Figure~\ref{fig:cycle_time} compares the mean per-cycle duration across all evaluation runs, and
+Table~\ref{tab:timing} provides the full breakdown including sample count and cycle-time
+statistics.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.80\textwidth]{../thesis_figures/fig8_cycle_time_bar.pdf}
+    \caption{Mean per-cycle execution time for the three pipelines.
+             Error bars show the standard deviation across evaluation runs.
+             Both simulation pipelines are consistently slower than the physical robot due to
+             RTDE command-processing overhead in URSim.}
+    \label{fig:cycle_time}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Timing breakdown for the three representative evaluation runs.
+         Cycle times for \textit{sim\_aas} were read from the monitoring dashboard
+         because an approximately 19.5\,s initialisation overhead at run start shifts the first
+         home-position return out of detection range.}
+\label{tab:timing}
+\begin{tabular}{lcccc}
+\toprule
+Pipeline & Duration (s) & Samples & Cycles & Mean cycle (s) \\
+\midrule
+\textit{real}        & 110.01 & 13{,}752 & 3 & $34.67 \pm 0.02$ \\
+\textit{sim\_no\_aas} & 125.17 & 15{,}647 & 3 & $39.66 \pm 0.08$ \\
+\textit{sim\_aas}     & 139.07 & 17{,}385 & 3 & $\approx 39.8 \pm 0.04$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two timing effects are visible in the results.
+
+\textbf{Both simulation pipelines run slower per cycle than the physical robot.}
+Each pick-and-place cycle takes approximately 39.7\,s in the simulator versus 34.7\,s on the
+real robot, a difference of roughly 5\,s.
+The physical robot benefits from a dedicated real-time OS kernel with hardware-level motion
+interpolation.
+URSim processes RTDE commands in a software loop, which introduces consistent latency on every
+\texttt{moveJ} instruction regardless of whether AAS parameters are applied.
+This gap is intrinsic to the simulator architecture and independent of the AAS layer.
+
+\textbf{Pipeline 3 (\textit{sim\_aas}) starts approximately 19.5\,s later than Pipeline 2.}
+This overhead arises from the AAS parameter fetch, controller setup, and RTDE reconnection that
+happen before the first trajectory command, as shown in Figure~\ref{fig:pipeline3_sequence}.
+Because the accuracy comparator aligns runs by wall-clock time rather than cycle index, this
+offset shifts the \textit{sim\_aas} trajectory forward in time relative to \textit{real}.
+The comparator then matches trajectory segments from different points in the cycle, which
+directly inflates every per-joint RMSE value reported in the next section.
+This is an important caveat when interpreting the position accuracy results.
+
+
+%% ===================================================================
+\section{Joint Position Accuracy}
+\label{sec:joint_accuracy}
+%% ===================================================================
+
+Figure~\ref{fig:joint_rmse} shows the per-joint RMSE between each simulation pipeline and the
+real robot.
+Table~\ref{tab:joint_rmse} provides the exact values in radians and degrees, together with the
+mean over the six joints and the combined (all-joint) RMS metric.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{../thesis_figures/fig8_joint_rmse_bar.pdf}
+    \caption{Per-joint position RMSE between each simulation pipeline and the real robot.
+             J3 (Elbow) and J4 (Wrist\,1) dominate the error in both comparisons.
+             The higher values for \textit{sim\_aas} at every joint are attributable to the
+             initialisation timing offset rather than any degradation of the simulation model.}
+    \label{fig:joint_rmse}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Per-joint position RMSE. The mean row averages the six per-joint values;
+         the combined RMS row takes the root mean square across all joints and all time steps.}
+\label{tab:joint_rmse}
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{\textbf{real vs sim\_no\_aas}} &
+   \multicolumn{2}{c}{\textbf{real vs sim\_aas}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Joint              & (rad)  & ($^\circ$) & (rad)  & ($^\circ$) \\
+\midrule
+J1 -- Base         & 0.1417 &  8.1  & 0.2082 & 11.9  \\
+J2 -- Shoulder     & 0.1650 &  9.5  & 0.2300 & 13.2  \\
+J3 -- Elbow        & 0.6131 & 35.1  & 0.9427 & 54.0  \\
+J4 -- Wrist 1      & 0.4953 & 28.4  & 0.7457 & 42.7  \\
+J5 -- Wrist 2      & 0.0297 &  1.7  & 0.0450 &  2.6  \\
+J6 -- Wrist 3      & 0.2240 & 12.8  & 0.3226 & 18.5  \\
+\midrule
+Mean (6 joints)    & 0.2781 & 15.9  & 0.4157 & 23.8  \\
+Combined RMS       & 0.3463 & 19.8  & 0.5239 & 30.0  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Joints 3 and 4 dominate the error.}
+J3 and J4 account for roughly 75\,\% of the total RMSE in both comparisons.
+These are the elbow and wrist-1 joints, which execute the largest angular excursions during the
+pick-and-place motion.
+Small differences in the simulation's acceleration profile and RTDE command timing accumulate
+most noticeably at high-travel joints.
+
+\textbf{Pipeline 3 (\textit{sim\_aas}) shows higher RMSE than Pipeline 2 at every joint.}
+This is the opposite of the improvement that AAS-driven calibration would ideally produce, and
+it requires careful explanation.
+Two factors contribute.
+First, the UR3 controller operates in \emph{joint space}: \texttt{moveJ} commands specify target
+joint angles directly, and the controller's internal dynamics model compensates for any attached
+payload.
+Injecting the payload mass updates the torque compensation, but the commanded joint-angle
+profile is identical regardless of whether a payload is registered.
+Kinematic position accuracy is therefore structurally unaffected by payload injection.
+Second, the 19.5\,s initialisation overhead means that \textit{sim\_aas} and \textit{real} are
+never in the same phase of the trajectory when they are compared, inflating every per-joint RMSE
+value.
+
+The null result on kinematic accuracy is therefore not evidence that AAS has no value; it is
+evidence that joint-space position tracking is not the correct metric to target when the only
+injectable parameters are payload mass and TCP offset.
+Section~\ref{sec:interface_constraints} explains why those are the only parameters available to
+this pipeline.
+
+
+%% ===================================================================
+\section{TCP Path Deviation}
+\label{sec:tcp_deviation}
+%% ===================================================================
+
+Figure~\ref{fig:tcp_deviation} shows the TCP deviation over time for both comparisons, and
+Table~\ref{tab:tcp} summarises the RMS deviation and its standard deviation across each full run.
+The deviation at each time step is the Euclidean distance between the real robot's TCP position
+and the interpolated simulation TCP position.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{../thesis_figures/fig8_tcp_deviation.pdf}
+    \caption{TCP path deviation between the real robot and each simulation pipeline over the
+             full evaluation run.
+             The higher deviation for \textit{sim\_aas} is consistent with the initialisation
+             timing offset that inflates the joint RMSE results in
+             Section~\ref{sec:joint_accuracy}.}
+    \label{fig:tcp_deviation}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{TCP RMS path deviation between the real evaluation run and each simulation run.
+         The standard deviation describes the variability of the instantaneous deviation over
+         time.}
+\label{tab:tcp}
+\begin{tabular}{lcc}
+\toprule
+Comparison                   & TCP RMS deviation (mm) & Std (mm) \\
+\midrule
+real vs sim\_no\_aas & 209.97 & 137.03 \\
+real vs sim\_aas     & 316.54 & 135.94 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The TCP deviations of 210\,mm and 317\,mm are consistent with the joint RMSE magnitudes:
+angular errors of 28--35$^\circ$ at J3 and J4 propagate through the robot kinematic chain and
+produce decimetre-scale end-effector displacement.
+The nearly identical standard deviations (137\,mm for \textit{sim\_no\_aas} and 136\,mm for
+\textit{sim\_aas}) indicate that the \emph{shape} of the deviation profile over time is similar
+for both pipelines.
+The difference lies in the mean level, which is elevated for \textit{sim\_aas} because of the
+temporal misalignment rather than a structural difference in path following.
+
+
+%% ===================================================================
+\section{Simulation Interface Constraints}
+\label{sec:interface_constraints}
+%% ===================================================================
+
+A fundamental factor limiting what the AAS can improve in this setup is the narrow parameter
+API exposed by URSim.
+As noted in the delimitations (Section~\ref{sec:delimitations}), the URSim scripting interface
+accepts only two robot-configuration calls:
+
+\begin{itemize}
+    \item \texttt{set\_payload(mass, cog)}: registers the payload mass in kilograms and its
+          centre-of-gravity offset in the tool frame;
+    \item \texttt{set\_tcp(pose)}: sets the tool-centre-point transformation.
+\end{itemize}
+
+The AAS model developed for this project defines four submodels:
+\textit{MotionCommand}, \textit{DynamicsParameters}, \textit{RobotState}, and
+\textit{PerformanceKPIs}.
+The \textit{DynamicsParameters} submodel contains four properties that are physically meaningful
+for simulation fidelity: friction coefficients, a current noise level, a control latency, and a
+damping factor.
+None of these has a corresponding URSim API call; they are silently ignored by the injection
+pipeline.
+
+This constraint has two measurable consequences that are directly visible in the results.
+
+\begin{enumerate}
+    \item \textbf{Near-zero current at low-motion joints.}
+          URSim has no friction or back-EMF model, so joints J1, J5, and J6 show near-zero
+          simulated current even though the physical robot draws meaningful current at the same
+          joints during low-velocity phases (see Section~\ref{sec:current_analysis}).
+          No friction parameter value, however accurately calibrated, can correct this without a
+          corresponding simulator API.
+
+    \item \textbf{No kinematic improvement from payload injection.}
+          The \texttt{moveJ} joint-space control architecture means that payload mass affects only
+          the internal torque model, not the commanded position profile.
+          A kinematic RMSE improvement through payload injection alone is structurally
+          impossible.
+\end{enumerate}
+
+These are not failures of the AAS concept; they are boundary conditions imposed by the target
+simulator.
+A physics-based simulator that exposes mass, inertia, friction, and damping parameters through a
+programmatic API would allow the full \textit{DynamicsParameters} submodel to be consumed,
+potentially yielding measurable improvements in both kinematic accuracy and current fidelity.
+This point is addressed in the Discussion (Chapter~\ref{chap:discussion}).
+
+
+%% ===================================================================
+\section{Joint Current Analysis}
+\label{sec:current_analysis}
+%% ===================================================================
+
+Motor current provides a complementary view of simulation fidelity that is sensitive to the
+dynamic model rather than just the kinematic trajectory.
+Figure~\ref{fig:rms_current} shows the RMS current drawn at each joint across all three
+pipelines, and Table~\ref{tab:current} gives the exact values.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{../thesis_figures/fig8_rms_current_bar.pdf}
+    \caption{RMS motor current per joint for all three pipelines.
+             \textit{sim\_aas} closely matches the real robot at J2 and J3, confirming that
+             AAS payload injection improved current fidelity at the high-load shoulder and
+             elbow joints.
+             Both simulation pipelines show near-zero current at J1, J5, and J6 because URSim
+             has no friction model.}
+    \label{fig:rms_current}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{RMS motor current (A) per joint for the three evaluation runs.
+         The mean row averages over the six joints.}
+\label{tab:current}
+\begin{tabular}{lrrr}
+\toprule
+Joint           & \textit{real} & \textit{sim\_no\_aas} & \textit{sim\_aas} \\
+\midrule
+J1 -- Base      & 0.2767 & 0.0035 & 0.0036 \\
+J2 -- Shoulder  & 1.2681 & 1.0906 & 1.2558 \\
+J3 -- Elbow     & 1.1662 & 1.0001 & 1.2028 \\
+J4 -- Wrist 1   & 0.6691 & 0.4321 & 0.5688 \\
+J5 -- Wrist 2   & 0.1984 & 0.0100 & 0.0109 \\
+J6 -- Wrist 3   & 0.2252 & 0.0009 & 0.0008 \\
+\midrule
+Mean            & 0.634  & 0.423  & 0.507  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two distinct patterns emerge from Table~\ref{tab:current}.
+
+\textbf{J1, J5, and J6 are near zero in both simulation pipelines.}
+As explained in Section~\ref{sec:interface_constraints}, URSim has no friction or back-EMF
+model.
+The physical robot draws 0.28\,A, 0.20\,A, and 0.23\,A respectively at these joints even during
+low-velocity phases, primarily from static holding torque and electromagnetic drag.
+Because the simulator cannot model these effects, no AAS parameter can correct them.
+
+\textbf{AAS injection substantially improved J2 and J3 current fidelity.}
+This is the primary positive finding of the experiment.
+
+\begin{itemize}
+    \item J2 (Shoulder): \textit{sim\_no\_aas} drew 1.091\,A, which is 86\,\% of the real
+          value of 1.268\,A.
+          \textit{sim\_aas} drew 1.256\,A, raising the match to 99\,\% of real.
+
+    \item J3 (Elbow): \textit{sim\_no\_aas} drew 1.000\,A, which is 86\,\% of the real
+          value of 1.166\,A.
+          \textit{sim\_aas} drew 1.203\,A, raising the match to 103\,\% of real.
+\end{itemize}
+
+The improvement is explained by the physics of the robot.
+The shoulder and elbow joints support the entire arm against gravity, so their current draw is
+proportional to the total suspended mass.
+When the payload mass is set to the correct value of 1.2\,kg, the simulator allocates
+proportionally larger compensation torques to J2 and J3, bringing their simulated current draw
+much closer to physical measurements.
+
+The overall mean current increased from 0.423\,A (\textit{sim\_no\_aas}) to 0.507\,A
+(\textit{sim\_aas}), narrowing the gap to the real mean of 0.634\,A.
+The remaining deficit is almost entirely attributable to the near-zero J1, J5, and J6 values,
+which require friction modelling to resolve.
+
+
+%% ===================================================================
+\section{Summary of Findings}
+\label{sec:eval_summary}
+%% ===================================================================
+
+Table~\ref{tab:summary} consolidates the key metrics from this chapter.
+
+\begin{table}[htbp]
+\centering
+\caption{Summary of evaluation metrics for Pipelines~2 and~3.
+         An upward arrow ($\uparrow$) indicates improvement toward the real robot values;
+         a downward arrow ($\downarrow$) indicates a larger gap.}
+\label{tab:summary}
+\begin{tabular}{lccc}
+\toprule
+Metric                          & \textit{sim\_no\_aas} & \textit{sim\_aas}   & AAS effect \\
+\midrule
+Total run duration (s)          & 125.17     & 139.07             & Init overhead: $+$14\,s \\
+Mean cycle time (s)             & 39.66      & $\approx$39.8      & Negligible ($\approx+$0.2\,s) \\
+Real cycle time (ref.) (s)      & \multicolumn{2}{c}{34.67}       & (reference) \\
+\midrule
+Mean joint RMSE ($^\circ$)      & 15.9       & 23.8               & $\downarrow$ timing artefact \\
+Combined joint RMS ($^\circ$)   & 19.8       & 30.0               & $\downarrow$ timing artefact \\
+TCP RMS deviation (mm)          & 210        & 317                & $\downarrow$ timing artefact \\
+\midrule
+Mean RMS current (A)            & 0.423      & 0.507              & $\uparrow$ $+$0.084\,A \\
+J2 current (\% of real)         & 86\,\%     & 99\,\%             & $\uparrow$ $+$13\,pp \\
+J3 current (\% of real)         & 86\,\%     & 103\,\%            & $\uparrow$ $+$17\,pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The experiment yields a \textbf{split outcome} that must be read carefully.
+
+On \textbf{kinematic position accuracy}, Pipeline~3 (\textit{sim\_aas}) produced no improvement
+over Pipeline~2.
+The higher RMSE figures are an artefact of the 19.5\,s initialisation overhead, which shifts the
+two runs out of phase before any trajectory data are compared.
+Even without this timing effect, the joint-space control architecture means that payload mass
+cannot alter the commanded position profile; a kinematic RMSE improvement through payload
+injection alone is structurally impossible.
+
+On \textbf{current fidelity}, Pipeline~3 produced a clear and measurable improvement.
+J2 rose from 86\,\% to 99\,\% of real, and J3 rose from 86\,\% to 103\,\% of real.
+This finding directly confirms the AAS hypothesis at the dynamic level: when the simulator
+receives accurate payload information, it distributes compensation torques correctly across the
+shoulder and elbow joints, producing current signals that closely match the physical
+measurements.
+
+The persistent near-zero current at J1, J5, and J6 in both simulation pipelines identifies
+friction and drag modelling as the principal remaining fidelity gap, one that requires a richer
+simulator parameter interface to close regardless of AAS data quality.

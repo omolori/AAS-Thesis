@@ -14,6 +14,7 @@ scipy>=1.13
 # UI dashboard
 streamlit>=1.36
 plotly>=5.22
+kaleido>=0.2.1
 
 # HTTP client for talking to the AAS server
 requests>=2.32

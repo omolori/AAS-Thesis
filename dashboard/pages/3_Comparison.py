@@ -1,5 +1,5 @@
 """Page 3 — Comparison."""
-import sys, datetime as dt, io
+import sys, datetime as dt, io, zipfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -273,3 +273,131 @@ with col1:
     )
 with col2:
     st.caption(f"Also saved to `{csv_path}`")
+
+# ── Export figures ────────────────────────────────────────────────────
+st.markdown("<hr>", unsafe_allow_html=True)
+
+_WHITE = dict(
+    template="plotly_white",
+    paper_bgcolor="white",
+    plot_bgcolor="white",
+    font=dict(family="Arial, sans-serif", size=13, color="#111111"),
+    margin=dict(l=60, r=30, t=50, b=50),
+)
+_label_a = meta_a.pipeline
+_label_b = meta_b.pipeline
+_joint_names = ["J1 Base", "J2 Shoulder", "J3 Elbow", "J4 Wrist 1", "J5 Wrist 2", "J6 Wrist 3"]
+
+def _build_export_figures():
+    figs = {}
+
+    # 1 ── Cycle time bar
+    _means = [mean_a, mean_b]
+    _labels = [_label_a, _label_b]
+    _colors = [COLOR_A, COLOR_B]
+    f1 = go.Figure()
+    for _i, (_lbl, _m, _c) in enumerate(zip(_labels, _means, _colors)):
+        f1.add_trace(go.Bar(
+            x=[_lbl], y=[_m],
+            marker_color=_c,
+            text=[f"{_m:.2f} s"], textposition="outside",
+            name=_lbl,
+        ))
+    f1.update_layout(
+        title="Mean per-cycle execution time",
+        yaxis_title="Duration (s)",
+        xaxis_title="Pipeline",
+        yaxis_range=[0, max(_means) * 1.3],
+        showlegend=False,
+        **_WHITE,
+    )
+    figs["cycle_time.png"] = f1
+
+    # 2 ── Joint RMSE grouped bar
+    f2 = go.Figure()
+    f2.add_trace(go.Bar(
+        name=f"real vs {_label_a}",
+        x=_joint_names,
+        y=[np.degrees(v) for v in result.joint_rmse_rad],
+        marker_color=COLOR_A,
+        text=[f"{np.degrees(v):.1f}°" for v in result.joint_rmse_rad],
+        textposition="outside",
+    ))
+    f2.update_layout(
+        title="Joint position RMSE vs real robot",
+        yaxis_title="RMSE (degrees)",
+        xaxis_title="Joint",
+        **_WHITE,
+    )
+    figs["joint_rmse.png"] = f2
+
+    # 3 ── TCP deviation time series
+    f3 = go.Figure()
+    f3.add_trace(go.Scatter(
+        x=t_shared, y=tcp_dist,
+        mode="lines", fill="tozeroy",
+        line=dict(color=COLOR_A, width=1.6),
+        fillcolor=f"rgba(74,158,255,0.15)",
+        name=f"real vs {_label_a}",
+    ))
+    f3.update_layout(
+        title="TCP path deviation from real robot",
+        xaxis_title="Elapsed time (s)",
+        yaxis_title="TCP deviation (mm)",
+        showlegend=True,
+        **_WHITE,
+    )
+    figs["tcp_deviation.png"] = f3
+
+    # 4 ── RMS current grouped bar (all 6 joints, A vs B)
+    f4 = go.Figure()
+    f4.add_trace(go.Bar(
+        name=_label_a,
+        x=_joint_names,
+        y=result.rms_current_a_per_joint,
+        marker_color=COLOR_A,
+        text=[f"{v:.3f}" for v in result.rms_current_a_per_joint],
+        textposition="outside",
+    ))
+    f4.add_trace(go.Bar(
+        name=_label_b,
+        x=_joint_names,
+        y=result.rms_current_b_per_joint,
+        marker_color=COLOR_B,
+        text=[f"{v:.3f}" for v in result.rms_current_b_per_joint],
+        textposition="outside",
+    ))
+    f4.update_layout(
+        title="RMS joint current by pipeline",
+        yaxis_title="RMS current (A)",
+        xaxis_title="Joint",
+        barmode="group",
+        **_WHITE,
+    )
+    figs["rms_current.png"] = f4
+
+    return figs
+
+try:
+    import plotly.io as pio
+
+    export_figs = _build_export_figures()
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname, fig in export_figs.items():
+            img_bytes = pio.to_image(fig, format="png", width=1200, height=550, scale=2)
+            zf.writestr(fname, img_bytes)
+    zip_buf.seek(0)
+
+    st.download_button(
+        label="Export",
+        data=zip_buf,
+        file_name=f"figures_{ts}.zip",
+        mime="application/zip",
+        type="primary",
+        use_container_width=False,
+    )
+    st.caption("Downloads a zip of 4 white-background PNGs ready for the thesis.")
+
+except Exception as _e:
+    st.warning(f"Figure export unavailable: {_e}. Run `pip install kaleido` to enable it.")

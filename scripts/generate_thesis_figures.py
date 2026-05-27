@@ -1,4 +1,4 @@
-"""Generate all Chapter 7 evaluation figures for the thesis."""
+"""Generate all Chapter 8 evaluation figures for the thesis."""
 import json, math, os
 import numpy as np
 import matplotlib
@@ -80,7 +80,7 @@ all_runs = cur.fetchall()
 
 REAL_IDS   = ["17bdd86a", "ad686ab3", "f1fc0d71", "52c26cbc", "4430d0da", "591b7473"]
 NO_AAS_ID  = "db4c6d73"
-AAS_ID     = "bd0fba22"
+AAS_ID     = "7b8c4a8e"  # mass=1.2 kg, basyx live, evaluation run
 
 cur.execute("SELECT run_id FROM runs WHERE pipeline='real'")
 real_full_ids = {r["run_id"][:8]: r["run_id"] for r in cur.fetchall()}
@@ -89,7 +89,7 @@ no_aas_full = {r["run_id"][:8]: r["run_id"] for r in cur.fetchall()}
 cur.execute("SELECT run_id FROM runs WHERE pipeline='sim_aas'")
 aas_full = {r["run_id"][:8]: r["run_id"] for r in cur.fetchall()}
 
-real_rep_id  = real_full_ids[REAL_IDS[0]]
+real_rep_id  = real_full_ids["591b7473"]  # representative real run
 no_aas_rep_id = no_aas_full[NO_AAS_ID]
 aas_rep_id    = aas_full[AAS_ID]
 
@@ -135,7 +135,7 @@ ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.grid(axis="y", alpha=0.3)
 fig.tight_layout()
-save(fig, "fig7_cycle_time_bar.pdf")
+save(fig, "fig8_cycle_time_bar.pdf")
 
 # ── Figure 2: joint RMSE grouped bar chart ───────────────────────────────────
 print("Figure 2: joint RMSE grouped bar chart")
@@ -165,7 +165,7 @@ ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.grid(axis="y", alpha=0.3)
 fig.tight_layout()
-save(fig, "fig7_joint_rmse_bar.pdf")
+save(fig, "fig8_joint_rmse_bar.pdf")
 
 # ── Figure 3: TCP deviation time series ──────────────────────────────────────
 print("Figure 3: TCP deviation time series")
@@ -186,7 +186,7 @@ ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.grid(alpha=0.3)
 fig.tight_layout()
-save(fig, "fig7_tcp_deviation.pdf")
+save(fig, "fig8_tcp_deviation.pdf")
 
 # ── Figure 4: RMS current grouped bar chart ──────────────────────────────────
 print("Figure 4: RMS current bar chart")
@@ -219,7 +219,7 @@ ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.grid(axis="y", alpha=0.3)
 fig.tight_layout()
-save(fig, "fig7_rms_current_bar.pdf")
+save(fig, "fig8_rms_current_bar.pdf")
 
 conn.close()
 print(f"\nAll figures saved to: {os.path.abspath(OUT_DIR)}")
