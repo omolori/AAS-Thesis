@@ -46,16 +46,17 @@ def _b64(s: str) -> str:
     return base64.urlsafe_b64encode(s.encode()).decode().rstrip("=")
 
 
-def _fetch(sm_id: str) -> dict:
+def _fetch(sm_id: str) -> dict | None:
+    """Return element dict if found, empty dict if 404, None if server unreachable."""
     if not sm_id:
         return {}
     try:
         r = requests.get(f"{BASYX_URL}/submodels/{_b64(sm_id)}", headers=_HDRS, timeout=5)
         if r.status_code == 200:
             return {el["idShort"]: el for el in r.json().get("submodelElements", [])}
+        return {}
     except Exception:
-        pass
-    return {}
+        return None
 
 
 def _patch(sm_id: str, prop: str, value) -> bool:
@@ -228,8 +229,10 @@ with st.expander('SM  "RobotState"   [urn:ur3:robotstate:1]', expanded=True):
         _prop_row_readonly("TCP_Pose",       "m, rad",  _sval(rs_idx, "TCP_Pose"))
         _prop_row_readonly("JointCurrents",  "A",       _sval(rs_idx, "JointCurrents"))
         _prop_row_readonly("Timestamp",      "ISO8601", _sval(rs_idx, "Timestamp"))
+    elif rs_idx is None:
+        st.caption("BaSyx server unreachable.")
     else:
-        st.caption("BaSyx server offline — RobotState unavailable.")
+        st.caption("RobotState submodel not found on the BaSyx server — run a sim_aas pipeline to populate it.")
 
 # ── SM PerformanceKPIs (read-only) ────────────────────────────────────────────
 with st.expander('SM  "PerformanceKPIs"   [urn:ur3:performancekpis:1]', expanded=True):
@@ -238,8 +241,10 @@ with st.expander('SM  "PerformanceKPIs"   [urn:ur3:performancekpis:1]', expanded
         _prop_row_readonly("RMSCurrent",         "A", f"{_fval(kpi_idx, 'RMSCurrent',        0):.3f}")
         _prop_row_readonly("EnergyConsumption",  "J", f"{_fval(kpi_idx, 'EnergyConsumption', 0):.1f}")
         _prop_row_readonly("PositionError",      "m", f"{_fval(kpi_idx, 'PositionError',     0):.4f}")
+    elif kpi_idx is None:
+        st.caption("BaSyx server unreachable.")
     else:
-        st.caption("BaSyx server offline — PerformanceKPIs unavailable.")
+        st.caption("PerformanceKPIs submodel not found — run a sim_aas pipeline to populate it.")
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
