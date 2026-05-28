@@ -75,7 +75,17 @@ if run_a_id == run_b_id:
     st.error("Select two different runs.")
     st.stop()
 
-if not st.button("Compare Runs", type="primary"):
+if st.button("Compare Runs", type="primary"):
+    st.session_state["cmp_active"] = True
+    st.session_state["cmp_a"] = run_a_id
+    st.session_state["cmp_b"] = run_b_id
+
+# Reset if the user picks different runs after a previous comparison
+if (st.session_state.get("cmp_a") != run_a_id or
+        st.session_state.get("cmp_b") != run_b_id):
+    st.session_state["cmp_active"] = False
+
+if not st.session_state.get("cmp_active", False):
     st.info("Select two runs above and click Compare Runs.")
     st.stop()
 

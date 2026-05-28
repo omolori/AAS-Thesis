@@ -72,9 +72,17 @@ def compare_runs(db_path: Path, run_a_id: str, run_b_id: str) -> ComparisonResul
     cycle_times_a = _detect_cycle_times(t_a, q_a)
     cycle_times_b = _detect_cycle_times(t_b, q_b)
 
-    # 2-3. Resample onto shared time axis for cross-run comparison
+    # 2-3. Resample onto shared time axis for cross-run comparison.
+    #      Align on motion onset so that startup overhead differences (e.g.
+    #      the ~13.5 s extra AAS initialisation in the sim_aas pipeline) do
+    #      not introduce an artificial phase offset between the two runs.
+    onset_a = _motion_onset(t_a, q_a)
+    onset_b = _motion_onset(t_b, q_b)
+    mask_a = t_a >= onset_a
+    mask_b = t_b >= onset_b
     t_shared, q_a_r, q_b_r, tcp_a_r, tcp_b_r = _align(
-        t_a, q_a, tcp_a, t_b, q_b, tcp_b
+        t_a[mask_a] - onset_a, q_a[mask_a], tcp_a[mask_a],
+        t_b[mask_b] - onset_b, q_b[mask_b], tcp_b[mask_b],
     )
 
     # 2. Joint-position RMSE
@@ -165,6 +173,29 @@ def write_comparison_csv(result: ComparisonResult, output_path: Path) -> None:
 def _near_home(q: np.ndarray) -> bool:
     """True if all 6 joints are within HOME_TOLERANCE of the home position."""
     return all(abs(q[j] - _HOME_Q[j]) < _HOME_TOLERANCE_RAD for j in range(6))
+
+
+def _motion_onset(t: np.ndarray, q: np.ndarray) -> float:
+    """Return the time of the first trajectory departure from the canonical home.
+
+    Handles two cases:
+    - Run already starts at home (real, sim_no_aas): returns the first sample
+      where _near_home() is False, i.e. the very beginning of cycle 1.
+    - Run starts away from home (sim_aas, which begins recording from the
+      URSim boot pose): waits for the robot to reach home, then returns the
+      first departure from home.  This strips both the boot-to-home motion
+      and any AAS initialisation dwell before the first cycle begins.
+
+    Falls back to t[0] if no transition is ever found (degenerate run).
+    """
+    state = "AT_HOME" if _near_home(q[0]) else "MOVING"
+    for i in range(len(t)):
+        at_home = _near_home(q[i])
+        if state == "MOVING" and at_home:
+            state = "AT_HOME"
+        elif state == "AT_HOME" and not at_home:
+            return float(t[i])
+    return float(t[0])
 
 
 def _detect_cycle_times(t: np.ndarray, q: np.ndarray) -> list[float]:
