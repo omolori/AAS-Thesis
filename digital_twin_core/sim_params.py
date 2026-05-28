@@ -9,6 +9,16 @@ import json
 from pathlib import Path
 
 _DEFAULTS = {
+    "motion_command": {
+        "target_joint_positions": [0.0, -1.57, 1.2, -1.57, -1.57, 0.0],
+        "speed_scaling": 0.8,
+    },
+    "dynamics": {
+        "friction_coefficient": 0.12,
+        "current_noise_level": 0.08,
+        "control_latency_s": 0.03,
+        "damping_factor": 0.15,
+    },
     "payload": {
         "mass_kg":  0.5,
         "cog_x_m":  0.0,
