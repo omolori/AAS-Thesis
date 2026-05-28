@@ -1,10 +1,10 @@
 """Page 5 — AAS Parameters.
 
-Displays the four UR3 AAS submodels as stored in the AASX Package Explorer:
-  - MotionCommand        [urn:ur3:motioncommand:1]       — editable
-  - DynamicsParameters   [urn:ur3:dynamicsparameters:1]  — editable
-  - RobotState           [urn:ur3:robotstate:1]          — read-only
-  - PerformanceKPIs      [urn:ur3:performancekpis:1]     — read-only
+Tree view matching the AASX Package Explorer layout:
+  SM "MotionCommand"      — expandable, editable
+  SM "DynamicsParameters" — expandable, editable
+  SM "RobotState"         — expandable, read-only
+  SM "PerformanceKPIs"    — expandable, read-only
 """
 import ast
 import base64
@@ -87,19 +87,40 @@ def _alive() -> bool:
         return False
 
 
-def _sm_header(id_short: str, urn: str) -> None:
-    st.markdown(
-        f'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px">'
-        f'<span style="font-weight:700;font-size:1rem;color:#ccd7e2">SM</span>'
-        f'<span style="font-weight:700;color:#ccd7e2">&quot;{id_short}&quot;</span>'
-        f'<span style="color:#7a8fa6;font-size:0.8rem">[{urn}]</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+def _prop_row(name: str, unit: str, value_widget):
+    """Render a single property row matching the AASX Package Explorer style."""
+    col_label, col_widget = st.columns([2, 3])
+    with col_label:
+        st.markdown(
+            f'<div style="padding-top:8px;font-size:0.88rem">'
+            f'<span style="color:#51CF66;font-weight:600">Prop</span> '
+            f'<span style="color:#ccd7e2">&quot;{name}&quot;</span> '
+            f'<span style="color:#7a8fa6">@{{unit={unit}}}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with col_widget:
+        return value_widget()
 
 
-def _prop_label(name: str, unit: str) -> str:
-    return f'<span style="color:#ccd7e2"><b>Prop</b> &quot;{name}&quot;</span> <span style="color:#7a8fa6;font-size:0.82rem">@{{unit={unit}}}</span>'
+def _prop_row_readonly(name: str, unit: str, value: str):
+    col_label, col_value = st.columns([2, 3])
+    with col_label:
+        st.markdown(
+            f'<div style="padding-top:8px;font-size:0.88rem">'
+            f'<span style="color:#51CF66;font-weight:600">Prop</span> '
+            f'<span style="color:#ccd7e2">&quot;{name}&quot;</span> '
+            f'<span style="color:#7a8fa6">@{{unit={unit}}}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with col_value:
+        st.markdown(
+            f'<div style="padding-top:8px;font-size:0.88rem;color:#F4D03F">'
+            f'= {value}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ── page ─────────────────────────────────────────────────────────────────────
@@ -107,8 +128,7 @@ def _prop_label(name: str, unit: str) -> str:
 st.markdown("# AAS Parameters")
 st.markdown(
     '<div style="color:#7a8fa6;font-size:0.88rem;margin-bottom:8px">'
-    "All parameters stored in the UR3 Asset Administration Shell. "
-    "Live values are read from the BaSyx server when online."
+    "All parameters stored in the UR3 Asset Administration Shell, organized by submodel."
     "</div>",
     unsafe_allow_html=True,
 )
@@ -120,7 +140,7 @@ dyn_p = p.get("dynamics", {})
 alive = _alive() if BASYX_URL else False
 
 color = GREEN if alive else "#E63946"
-badge = f"BaSyx Online" if alive else "BaSyx Offline — showing local values"
+badge = "BaSyx Online" if alive else "BaSyx Offline — showing local values"
 st.markdown(
     f'<div style="display:inline-flex;align-items:center;gap:10px;background:#161C27;'
     f'border:1px solid #232B3B;border-left:3px solid {color};border-radius:8px;'
@@ -136,110 +156,90 @@ dyn_idx = _fetch(DYNAMICS_ID)   if alive else {}
 rs_idx  = _fetch(ROBOTSTATE_ID) if alive else {}
 kpi_idx = _fetch(KPI_ID)        if alive else {}
 
-# ── MotionCommand ─────────────────────────────────────────────────────────────
-_sm_header("MotionCommand", "urn:ur3:motioncommand:1")
+# ── SM MotionCommand ──────────────────────────────────────────────────────────
+with st.expander('SM  "MotionCommand"   [urn:ur3:motioncommand:1]', expanded=True):
 
-tjp_default = mc_p.get("target_joint_positions", [0.0, -1.57, 1.2, -1.57, -1.57, 0.0])
-st.markdown(_prop_label("TargetJointPositions", "rad"), unsafe_allow_html=True)
-tjp_raw = st.text_input("TargetJointPositions", label_visibility="collapsed",
-                         value=_sval(mc_idx, "TargetJointPositions", str(tjp_default)))
-try:
-    target_joint_positions = ast.literal_eval(tjp_raw)
-    if not (isinstance(target_joint_positions, list) and len(target_joint_positions) == 6):
-        raise ValueError
-except (ValueError, SyntaxError):
-    st.warning("Must be a list of 6 numbers.")
-    target_joint_positions = tjp_default
+    tjp_default = mc_p.get("target_joint_positions", [0.0, -1.57, 1.2, -1.57, -1.57, 0.0])
 
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(_prop_label("SpeedScaling", "ratio"), unsafe_allow_html=True)
-    speed_scaling = st.number_input("SpeedScaling", label_visibility="collapsed",
-                                     value=_fval(mc_idx, "SpeedScaling", mc_p.get("speed_scaling", 0.8)),
-                                     min_value=0.01, max_value=1.0, step=0.01, format="%.2f")
-with col2:
-    st.markdown(_prop_label("PayloadMass", "kg"), unsafe_allow_html=True)
-    payload_mass = st.number_input("PayloadMass", label_visibility="collapsed",
-                                    value=_fval(mc_idx, "PayloadMass", p["payload"]["mass_kg"]),
-                                    min_value=0.0, max_value=3.0, step=0.01, format="%.3f")
+    def _tjp_widget():
+        raw = st.text_input("TargetJointPositions", label_visibility="collapsed",
+                             value=_sval(mc_idx, "TargetJointPositions", str(tjp_default)),
+                             key="tjp")
+        try:
+            parsed = ast.literal_eval(raw)
+            if not (isinstance(parsed, list) and len(parsed) == 6):
+                raise ValueError
+            return parsed
+        except (ValueError, SyntaxError):
+            st.warning("Must be a list of 6 numbers.")
+            return tjp_default
 
-st.markdown("<hr>", unsafe_allow_html=True)
+    target_joint_positions = _prop_row("TargetJointPositions", "rad", _tjp_widget)
 
-# ── DynamicsParameters ────────────────────────────────────────────────────────
-_sm_header("DynamicsParameters", "urn:ur3:dynamicsparameters:1")
+    def _ss_widget():
+        return st.number_input("SpeedScaling", label_visibility="collapsed",
+                                value=_fval(mc_idx, "SpeedScaling", mc_p.get("speed_scaling", 0.8)),
+                                min_value=0.01, max_value=1.0, step=0.01, format="%.2f", key="ss")
 
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(_prop_label("FrictionCoefficient", "ratio"), unsafe_allow_html=True)
-    friction_coeff = st.number_input("FrictionCoefficient", label_visibility="collapsed",
-                                      value=_fval(dyn_idx, "FrictionCoefficient", dyn_p.get("friction_coefficient", 0.12)),
-                                      min_value=0.0, max_value=2.0, step=0.01, format="%.3f")
-with col2:
-    st.markdown(_prop_label("CurrentNoiseLevel", "A"), unsafe_allow_html=True)
-    current_noise = st.number_input("CurrentNoiseLevel", label_visibility="collapsed",
-                                     value=_fval(dyn_idx, "CurrentNoiseLevel", dyn_p.get("current_noise_level", 0.08)),
-                                     min_value=0.0, max_value=1.0, step=0.001, format="%.3f")
+    speed_scaling = _prop_row("SpeedScaling", "ratio", _ss_widget)
 
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(_prop_label("ControlLatency", "s"), unsafe_allow_html=True)
-    control_latency = st.number_input("ControlLatency", label_visibility="collapsed",
-                                       value=_fval(dyn_idx, "ControlLatency", dyn_p.get("control_latency_s", 0.03)),
-                                       min_value=0.0, max_value=0.5, step=0.001, format="%.3f")
-with col2:
-    st.markdown(_prop_label("DampingFactor", "ratio"), unsafe_allow_html=True)
-    damping_factor = st.number_input("DampingFactor", label_visibility="collapsed",
-                                      value=_fval(dyn_idx, "DampingFactor", dyn_p.get("damping_factor", 0.15)),
-                                      min_value=0.0, max_value=2.0, step=0.01, format="%.3f")
+    def _pm_widget():
+        return st.number_input("PayloadMass", label_visibility="collapsed",
+                                value=_fval(mc_idx, "PayloadMass", p["payload"]["mass_kg"]),
+                                min_value=0.0, max_value=3.0, step=0.01, format="%.3f", key="pm")
 
-st.markdown("<hr>", unsafe_allow_html=True)
+    payload_mass = _prop_row("PayloadMass", "kg", _pm_widget)
 
-# ── RobotState (read-only) ───────────────────────────────────────────────────
-_sm_header("RobotState", "urn:ur3:robotstate:1")
+# ── SM DynamicsParameters ─────────────────────────────────────────────────────
+with st.expander('SM  "DynamicsParameters"   [urn:ur3:dynamicsparameters:1]', expanded=True):
 
-if rs_idx:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(_prop_label("JointPositions", "rad"), unsafe_allow_html=True)
-        st.text_input("JointPositions", label_visibility="collapsed",
-                      value=_sval(rs_idx, "JointPositions"), disabled=True)
-    with col2:
-        st.markdown(_prop_label("TCP_Pose", "m, rad"), unsafe_allow_html=True)
-        st.text_input("TCP_Pose", label_visibility="collapsed",
-                      value=_sval(rs_idx, "TCP_Pose"), disabled=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(_prop_label("JointCurrents", "A"), unsafe_allow_html=True)
-        st.text_input("JointCurrents", label_visibility="collapsed",
-                      value=_sval(rs_idx, "JointCurrents"), disabled=True)
-    with col2:
-        st.markdown(_prop_label("Timestamp", "ISO8601"), unsafe_allow_html=True)
-        st.text_input("Timestamp", label_visibility="collapsed",
-                      value=_sval(rs_idx, "Timestamp"), disabled=True)
-else:
-    st.caption("BaSyx server offline — RobotState unavailable.")
+    def _fc_widget():
+        return st.number_input("FrictionCoefficient", label_visibility="collapsed",
+                                value=_fval(dyn_idx, "FrictionCoefficient", dyn_p.get("friction_coefficient", 0.12)),
+                                min_value=0.0, max_value=2.0, step=0.01, format="%.3f", key="fc")
 
-st.markdown("<hr>", unsafe_allow_html=True)
+    friction_coeff = _prop_row("FrictionCoefficient", "ratio", _fc_widget)
 
-# ── PerformanceKPIs (read-only) ──────────────────────────────────────────────
-_sm_header("PerformanceKPIs", "urn:ur3:performancekpis:1")
+    def _cn_widget():
+        return st.number_input("CurrentNoiseLevel", label_visibility="collapsed",
+                                value=_fval(dyn_idx, "CurrentNoiseLevel", dyn_p.get("current_noise_level", 0.08)),
+                                min_value=0.0, max_value=1.0, step=0.001, format="%.3f", key="cn")
 
-if kpi_idx:
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(_prop_label("CycleTime", "s"), unsafe_allow_html=True)
-        st.metric("CycleTime", f"{_fval(kpi_idx, 'CycleTime', 0):.2f}", label_visibility="collapsed")
-    with col2:
-        st.markdown(_prop_label("RMSCurrent", "A"), unsafe_allow_html=True)
-        st.metric("RMSCurrent", f"{_fval(kpi_idx, 'RMSCurrent', 0):.3f}", label_visibility="collapsed")
-    with col3:
-        st.markdown(_prop_label("EnergyConsumption", "J"), unsafe_allow_html=True)
-        st.metric("EnergyConsumption", f"{_fval(kpi_idx, 'EnergyConsumption', 0):.1f}", label_visibility="collapsed")
-    with col4:
-        st.markdown(_prop_label("PositionError", "m"), unsafe_allow_html=True)
-        st.metric("PositionError", f"{_fval(kpi_idx, 'PositionError', 0):.4f}", label_visibility="collapsed")
-else:
-    st.caption("BaSyx server offline — PerformanceKPIs unavailable.")
+    current_noise = _prop_row("CurrentNoiseLevel", "A", _cn_widget)
+
+    def _cl_widget():
+        return st.number_input("ControlLatency", label_visibility="collapsed",
+                                value=_fval(dyn_idx, "ControlLatency", dyn_p.get("control_latency_s", 0.03)),
+                                min_value=0.0, max_value=0.5, step=0.001, format="%.3f", key="cl")
+
+    control_latency = _prop_row("ControlLatency", "s", _cl_widget)
+
+    def _df_widget():
+        return st.number_input("DampingFactor", label_visibility="collapsed",
+                                value=_fval(dyn_idx, "DampingFactor", dyn_p.get("damping_factor", 0.15)),
+                                min_value=0.0, max_value=2.0, step=0.01, format="%.3f", key="df")
+
+    damping_factor = _prop_row("DampingFactor", "ratio", _df_widget)
+
+# ── SM RobotState (read-only) ─────────────────────────────────────────────────
+with st.expander('SM  "RobotState"   [urn:ur3:robotstate:1]', expanded=True):
+    if rs_idx:
+        _prop_row_readonly("JointPositions", "rad",     _sval(rs_idx, "JointPositions"))
+        _prop_row_readonly("TCP_Pose",       "m, rad",  _sval(rs_idx, "TCP_Pose"))
+        _prop_row_readonly("JointCurrents",  "A",       _sval(rs_idx, "JointCurrents"))
+        _prop_row_readonly("Timestamp",      "ISO8601", _sval(rs_idx, "Timestamp"))
+    else:
+        st.caption("BaSyx server offline — RobotState unavailable.")
+
+# ── SM PerformanceKPIs (read-only) ────────────────────────────────────────────
+with st.expander('SM  "PerformanceKPIs"   [urn:ur3:performancekpis:1]', expanded=True):
+    if kpi_idx:
+        _prop_row_readonly("CycleTime",          "s", f"{_fval(kpi_idx, 'CycleTime',         0):.2f}")
+        _prop_row_readonly("RMSCurrent",         "A", f"{_fval(kpi_idx, 'RMSCurrent',        0):.3f}")
+        _prop_row_readonly("EnergyConsumption",  "J", f"{_fval(kpi_idx, 'EnergyConsumption', 0):.1f}")
+        _prop_row_readonly("PositionError",      "m", f"{_fval(kpi_idx, 'PositionError',     0):.4f}")
+    else:
+        st.caption("BaSyx server offline — PerformanceKPIs unavailable.")
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
