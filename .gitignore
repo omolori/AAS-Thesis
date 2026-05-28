@@ -7,9 +7,19 @@ venv/
 .env
 
 # Project data
-# data/runs.db is committed so Streamlit Cloud has sample data to display
 data/aas_storage/
+data/comparisons/*
+!data/comparisons/.gitkeep
 *.db-journal
+
+# Thesis documents and figures
+thesis/
+thesis_figures/
+
+# Thesis-specific scripts
+scripts/generate_thesis_figures.py
+scripts/migrate_to_supabase.py
+scripts/thesis_data_export.py
 
 # IDE
 .vscode/
@@ -19,10 +29,10 @@ data/aas_storage/
 .DS_Store
 Thumbs.db
 
-# Dev notes (not part of thesis deliverable)
+# Internal dev notes
 CLAUDE.md
 PHASE_4_SPEC.md
 .claude/
 
-# Secrets — never commit
+# Secrets
 .streamlit/secrets.toml
