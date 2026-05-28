@@ -165,11 +165,17 @@ if alive:
                 data = r.json()
                 items = data.get("result", data) if isinstance(data, dict) else data
                 for sm in items:
-                    sm_id  = sm.get("id", "?")
-                    sm_short = sm.get("idShort", "?")
-                    st.code(f'{sm_short}  →  {sm_id}')
+                    st.code(f'{sm.get("idShort","?")}  →  {sm.get("id","?")}')
             else:
                 st.warning(f"GET /submodels returned {r.status_code}")
+        except Exception as e:
+            st.error(str(e))
+
+        st.markdown("**Raw RobotState fetch:**")
+        try:
+            r2 = requests.get(f"{BASYX_URL}/submodels/{_b64(ROBOTSTATE_ID)}", headers=_HDRS, timeout=5)
+            st.code(f"Status: {r2.status_code}")
+            st.json(r2.json())
         except Exception as e:
             st.error(str(e))
 
