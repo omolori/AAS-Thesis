@@ -36,8 +36,9 @@ local_url  = "http://192.168.1.231:8081"
 ngrok_url  = "https://casually-credit-duchess.ngrok-free.dev"
 use_ngrok  = true
 
-# IDs of the three submodels on the BaSyx server.
+# IDs of the four submodels on the BaSyx server.
 aas_id                  = "urn:ur3:simulation:1"
 submodel_inputs_id      = "urn:ur3:motioncommand:1"
+submodel_dynamics_id    = "urn:ur3:dynamicsparameters:1"
+submodel_robotstate_id  = "urn:ur3:robotstate:1"
 submodel_kpi_id         = "urn:ur3:performancekpis:1"
-submodel_model_id       = "urn:ur3:simulationmodel:1"

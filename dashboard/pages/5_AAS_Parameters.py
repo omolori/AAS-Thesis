@@ -1,10 +1,11 @@
 """Page 5 — AAS Parameters.
 
-Shows all parameters stored across the UR3 AAS submodels:
-  - MotionCommand        (BaSyx server, editable)
-  - DynamicsParameters   (sim_params.json, editable)
-  - PerformanceKPIs      (BaSyx server, read-only)
-  - SimulationModels     (local AAS, editable — payload, TCP, calibration, friction)
+Displays all four UR3 AAS submodels with exact property names as stored
+in the AASX Package Explorer:
+  - MotionCommand        [urn:ur3:motioncommand:1]       — editable
+  - DynamicsParameters   [urn:ur3:dynamicsparameters:1]  — editable
+  - RobotState           [urn:ur3:robotstate:1]          — read-only
+  - PerformanceKPIs      [urn:ur3:performancekpis:1]     — read-only
 """
 import ast
 import base64
@@ -30,12 +31,14 @@ render_sidebar(db_path)
 
 PARAMS_PATH = PROJECT_ROOT / "data" / "sim_params.json"
 
-_bcfg      = config.get("basyx_server", {})
-_use_ngrok = str(_bcfg.get("use_ngrok", "false")).lower() == "true"
-BASYX_URL  = _bcfg.get("ngrok_url" if _use_ngrok else "local_url", "")
-_HDRS      = {"ngrok-skip-browser-warning": "true"} if _use_ngrok else {}
-INPUTS_ID  = _bcfg.get("submodel_inputs_id", "")
-KPI_ID     = _bcfg.get("submodel_kpi_id", "")
+_bcfg         = config.get("basyx_server", {})
+_use_ngrok    = str(_bcfg.get("use_ngrok", "false")).lower() == "true"
+BASYX_URL     = _bcfg.get("ngrok_url" if _use_ngrok else "local_url", "")
+_HDRS         = {"ngrok-skip-browser-warning": "true"} if _use_ngrok else {}
+INPUTS_ID     = _bcfg.get("submodel_inputs_id",     "")
+DYNAMICS_ID   = _bcfg.get("submodel_dynamics_id",   "")
+ROBOTSTATE_ID = _bcfg.get("submodel_robotstate_id", "")
+KPI_ID        = _bcfg.get("submodel_kpi_id",        "")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -45,6 +48,9 @@ def _b64(s: str) -> str:
 
 
 def _fetch(sm_id: str) -> dict:
+    """Fetch submodel elements as {idShort: element} dict."""
+    if not sm_id:
+        return {}
     try:
         r = requests.get(f"{BASYX_URL}/submodels/{_b64(sm_id)}", headers=_HDRS, timeout=5)
         if r.status_code == 200:
@@ -65,7 +71,18 @@ def _patch(sm_id: str, prop: str, value) -> bool:
 
 def _val(idx: dict, key: str, default):
     el = idx.get(key)
-    return float(el["value"]) if el and el.get("value") is not None else default
+    if el is None:
+        return default
+    v = el.get("value")
+    try:
+        return float(v) if v is not None else default
+    except (TypeError, ValueError):
+        return v if v is not None else default
+
+
+def _str_val(idx: dict, key: str, default: str = "—") -> str:
+    el = idx.get(key)
+    return str(el["value"]) if el and el.get("value") is not None else default
 
 
 def _alive() -> bool:
@@ -88,8 +105,8 @@ def _section(label: str) -> None:
 st.markdown("# AAS Parameters")
 st.markdown(
     '<div style="color:#7a8fa6;font-size:0.88rem;margin-bottom:8px">'
-    "All parameters stored across the UR3 AAS submodels. "
-    "Motion Command and Performance KPIs are read live from the BaSyx server when online."
+    "All parameters stored across the four UR3 AAS submodels. "
+    "Live values are read directly from the BaSyx server when online."
     "</div>",
     unsafe_allow_html=True,
 )
@@ -100,9 +117,8 @@ mc_p  = p.get("motion_command", {})
 dyn_p = p.get("dynamics", {})
 alive = _alive() if BASYX_URL else False
 
-# status badge
 color = GREEN if alive else "#E63946"
-label = "BaSyx Online" if alive else "BaSyx Offline — showing local values"
+label = f"BaSyx Online — {BASYX_URL}" if alive else "BaSyx Offline — showing local values"
 st.markdown(
     f'<div style="display:inline-flex;align-items:center;gap:10px;background:#161C27;'
     f'border:1px solid #232B3B;border-left:3px solid {color};border-radius:8px;'
@@ -113,15 +129,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# fetch live values
-mc_idx  = _fetch(INPUTS_ID) if alive and INPUTS_ID else {}
-kpi_idx = _fetch(KPI_ID)    if alive and KPI_ID    else {}
+mc_idx  = _fetch(INPUTS_ID)     if alive else {}
+dyn_idx = _fetch(DYNAMICS_ID)   if alive else {}
+rs_idx  = _fetch(ROBOTSTATE_ID) if alive else {}
+kpi_idx = _fetch(KPI_ID)        if alive else {}
 
-# ── Motion Command submodel ──────────────────────────────────────────────────
-_section("Motion Command")
+# ── MotionCommand ─────────────────────────────────────────────────────────────
+_section("MotionCommand  [urn:ur3:motioncommand:1]")
 
 tjp_default = mc_p.get("target_joint_positions", [0.0, -1.57, 1.2, -1.57, -1.57, 0.0])
-tjp_raw = st.text_input("Target Joint Positions", value=str(tjp_default))
+tjp_raw = st.text_input(
+    "TargetJointPositions  @{unit=rad}",
+    value=_str_val(mc_idx, "TargetJointPositions", str(tjp_default)),
+)
 try:
     target_joint_positions = ast.literal_eval(tjp_raw)
     if not (isinstance(target_joint_positions, list) and len(target_joint_positions) == 6):
@@ -131,88 +151,115 @@ except (ValueError, SyntaxError):
     target_joint_positions = tjp_default
 
 col1, col2 = st.columns(2)
-payload_mass  = col1.number_input(
-    "Payload Mass (kg)",
-    value=_val(mc_idx, "PayloadMass", p["payload"]["mass_kg"]),
-    min_value=0.0, max_value=3.0, step=0.01, format="%.3f",
-)
-speed_scaling = col2.number_input(
-    "Speed Scaling",
+speed_scaling = col1.number_input(
+    "SpeedScaling  @{unit=ratio}",
     value=_val(mc_idx, "SpeedScaling", mc_p.get("speed_scaling", 0.8)),
     min_value=0.01, max_value=1.0, step=0.01, format="%.2f",
 )
+payload_mass = col2.number_input(
+    "PayloadMass  @{unit=kg}",
+    value=_val(mc_idx, "PayloadMass", p["payload"]["mass_kg"]),
+    min_value=0.0, max_value=3.0, step=0.01, format="%.3f",
+)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ── Dynamics Parameters submodel ─────────────────────────────────────────────
-_section("Dynamics Parameters")
+# ── DynamicsParameters ────────────────────────────────────────────────────────
+_section("DynamicsParameters  [urn:ur3:dynamicsparameters:1]")
 
 col1, col2 = st.columns(2)
-friction_coeff  = col1.number_input("Friction Coefficient",  value=float(dyn_p.get("friction_coefficient", 0.12)), min_value=0.0, max_value=2.0,  step=0.01,  format="%.3f")
-current_noise   = col2.number_input("Current Noise Level",   value=float(dyn_p.get("current_noise_level",  0.08)), min_value=0.0, max_value=1.0,  step=0.001, format="%.3f")
+friction_coeff  = col1.number_input(
+    "FrictionCoefficient  @{unit=ratio}",
+    value=_val(dyn_idx, "FrictionCoefficient", dyn_p.get("friction_coefficient", 0.12)),
+    min_value=0.0, max_value=2.0, step=0.01, format="%.3f",
+)
+current_noise = col2.number_input(
+    "CurrentNoiseLevel  @{unit=A}",
+    value=_val(dyn_idx, "CurrentNoiseLevel", dyn_p.get("current_noise_level", 0.08)),
+    min_value=0.0, max_value=1.0, step=0.001, format="%.3f",
+)
 
 col1, col2 = st.columns(2)
-control_latency = col1.number_input("Control Latency (s)",   value=float(dyn_p.get("control_latency_s",    0.03)), min_value=0.0, max_value=0.5,  step=0.001, format="%.3f")
-damping_factor  = col2.number_input("Damping Factor",        value=float(dyn_p.get("damping_factor",       0.15)), min_value=0.0, max_value=2.0,  step=0.01,  format="%.3f")
+control_latency = col1.number_input(
+    "ControlLatency  @{unit=s}",
+    value=_val(dyn_idx, "ControlLatency", dyn_p.get("control_latency_s", 0.03)),
+    min_value=0.0, max_value=0.5, step=0.001, format="%.3f",
+)
+damping_factor = col2.number_input(
+    "DampingFactor  @{unit=ratio}",
+    value=_val(dyn_idx, "DampingFactor", dyn_p.get("damping_factor", 0.15)),
+    min_value=0.0, max_value=2.0, step=0.01, format="%.3f",
+)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ── Performance KPIs (read-only) ─────────────────────────────────────────────
-_section("Performance KPIs — last run (read-only)")
+# ── RobotState (read-only) ───────────────────────────────────────────────────
+_section("RobotState  [urn:ur3:robotstate:1]  — read-only")
+
+if rs_idx:
+    col1, col2 = st.columns(2)
+    col1.text_input("JointPositions  @{unit=rad}",  value=_str_val(rs_idx, "JointPositions"),  disabled=True)
+    col2.text_input("TCP_Pose  @{unit=m, rad}",      value=_str_val(rs_idx, "TCP_Pose"),        disabled=True)
+    col1, col2 = st.columns(2)
+    col1.text_input("JointCurrents  @{unit=A}",      value=_str_val(rs_idx, "JointCurrents"),   disabled=True)
+    col2.text_input("Timestamp  @{unit=ISO8601}",    value=_str_val(rs_idx, "Timestamp"),       disabled=True)
+else:
+    st.caption("BaSyx server offline — RobotState unavailable.")
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ── PerformanceKPIs (read-only) ──────────────────────────────────────────────
+_section("PerformanceKPIs  [urn:ur3:performancekpis:1]  — read-only")
 
 if kpi_idx:
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Cycle Time",      f"{_val(kpi_idx, 'CycleTime',          0):.2f} s")
-    col2.metric("RMS Current",     f"{_val(kpi_idx, 'RMSCurrent',         0):.3f} A")
-    col3.metric("Energy",          f"{_val(kpi_idx, 'EnergyConsumption',  0):.1f} J")
-    col4.metric("Position Error",  f"{_val(kpi_idx, 'PositionError',      0)*1000:.3f} mm")
+    col1.metric("CycleTime  (s)",           f"{_val(kpi_idx, 'CycleTime',         0):.2f}")
+    col2.metric("RMSCurrent  (A)",          f"{_val(kpi_idx, 'RMSCurrent',        0):.3f}")
+    col3.metric("EnergyConsumption  (J)",   f"{_val(kpi_idx, 'EnergyConsumption', 0):.1f}")
+    col4.metric("PositionError  (m)",       f"{_val(kpi_idx, 'PositionError',     0):.4f}")
 else:
-    st.caption("BaSyx server offline — KPI values unavailable.")
+    st.caption("BaSyx server offline — PerformanceKPIs unavailable.")
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ── Simulation Models submodel (local AAS) ───────────────────────────────────
-with st.expander("Simulation Model — Payload Centre of Gravity", expanded=False):
-    st.caption("CoG position of the tool/gripper relative to the flange (metres).")
+# ── SimulationModels (local AAS, collapsed) ──────────────────────────────────
+with st.expander("SimulationModels — Payload Centre of Gravity", expanded=False):
     col1, col2, col3 = st.columns(3)
     cog_x = col1.number_input("CoG X (m)", value=float(p["payload"]["cog_x_m"]), min_value=-0.5, max_value=0.5, step=0.001, format="%.4f")
     cog_y = col2.number_input("CoG Y (m)", value=float(p["payload"]["cog_y_m"]), min_value=-0.5, max_value=0.5, step=0.001, format="%.4f")
     cog_z = col3.number_input("CoG Z (m)", value=float(p["payload"]["cog_z_m"]), min_value=-0.5, max_value=0.5, step=0.001, format="%.4f")
 
-with st.expander("Simulation Model — Tool TCP Offset", expanded=False):
-    st.caption("Tool tip pose relative to the robot flange.")
+with st.expander("SimulationModels — ToolTCPOffset", expanded=False):
     col1, col2, col3 = st.columns(3)
-    tcp_x  = col1.number_input("X (m)",    value=float(p["tool_tcp"]["x_m"]), min_value=-0.5, max_value=0.5,  step=0.001, format="%.4f")
-    tcp_y  = col2.number_input("Y (m)",    value=float(p["tool_tcp"]["y_m"]), min_value=-0.5, max_value=0.5,  step=0.001, format="%.4f")
-    tcp_z  = col3.number_input("Z (m)",    value=float(p["tool_tcp"]["z_m"]), min_value=-0.5, max_value=0.5,  step=0.001, format="%.4f")
+    tcp_x  = col1.number_input("X (m)",    value=float(p["tool_tcp"]["x_m"]), min_value=-0.5, max_value=0.5,   step=0.001, format="%.4f")
+    tcp_y  = col2.number_input("Y (m)",    value=float(p["tool_tcp"]["y_m"]), min_value=-0.5, max_value=0.5,   step=0.001, format="%.4f")
+    tcp_z  = col3.number_input("Z (m)",    value=float(p["tool_tcp"]["z_m"]), min_value=-0.5, max_value=0.5,   step=0.001, format="%.4f")
     col1, col2, col3 = st.columns(3)
     tcp_rx = col1.number_input("Rx (rad)", value=float(p["tool_tcp"]["rx"]),  min_value=-3.15, max_value=3.15, step=0.001, format="%.4f")
     tcp_ry = col2.number_input("Ry (rad)", value=float(p["tool_tcp"]["ry"]),  min_value=-3.15, max_value=3.15, step=0.001, format="%.4f")
     tcp_rz = col3.number_input("Rz (rad)", value=float(p["tool_tcp"]["rz"]),  min_value=-3.15, max_value=3.15, step=0.001, format="%.4f")
 
-with st.expander("Simulation Model — Joint Calibration Offsets (rad)", expanded=False):
-    st.caption("Kinematic calibration deltas from nominal. Read from ur-calibration.yaml on the real robot.")
+with st.expander("SimulationModels — JointCalibrationOffsets_rad", expanded=False):
     calib = list(p["joint_calibration_offsets_rad"])
     cols  = st.columns(6)
     for j in range(6):
-        calib[j] = cols[j].number_input(f"J{j+1}", value=float(calib[j]), min_value=-0.1, max_value=0.1, step=0.0001, format="%.5f", key=f"calib_{j}")
+        calib[j] = cols[j].number_input(f"Joint{j+1}", value=float(calib[j]), min_value=-0.1, max_value=0.1, step=0.0001, format="%.5f", key=f"calib_{j}")
 
-with st.expander("Simulation Model — Joint Friction Coefficients (per joint)", expanded=False):
-    st.caption("Coulomb (static) and viscous (speed-dependent) friction per joint.")
+with st.expander("SimulationModels — JointFrictionCoefficients", expanded=False):
     friction    = [dict(c) for c in p["joint_friction_coefficients"]]
     col_headers = st.columns(6)
     for j in range(6):
-        col_headers[j].markdown(f'<div style="color:{TEAL};font-weight:700;text-align:center">J{j+1}</div>', unsafe_allow_html=True)
+        col_headers[j].markdown(f'<div style="color:{TEAL};font-weight:700;text-align:center">Joint{j+1}</div>', unsafe_allow_html=True)
     coulomb_row = st.columns(6)
     viscous_row = st.columns(6)
     for j in range(6):
         friction[j]["coulomb_Nm"] = coulomb_row[j].number_input(
-            "Coulomb (Nm)", value=float(friction[j]["coulomb_Nm"]),
+            "Coulomb_Nm", value=float(friction[j]["coulomb_Nm"]),
             min_value=0.0, max_value=5.0, step=0.01, format="%.3f",
             key=f"coulomb_{j}", label_visibility="visible" if j == 0 else "collapsed",
         )
         friction[j]["viscous_Nm_s_rad"] = viscous_row[j].number_input(
-            "Viscous (Nm·s/rad)", value=float(friction[j]["viscous_Nm_s_rad"]),
+            "Viscous_Nm_s_rad", value=float(friction[j]["viscous_Nm_s_rad"]),
             min_value=0.0, max_value=5.0, step=0.001, format="%.4f",
             key=f"viscous_{j}", label_visibility="visible" if j == 0 else "collapsed",
         )
@@ -225,7 +272,7 @@ if col1.button("Save Parameters", type="primary", use_container_width=True):
     new_params = {
         "motion_command": {
             "target_joint_positions": target_joint_positions,
-            "speed_scaling": speed_scaling,
+            "speed_scaling":          speed_scaling,
         },
         "dynamics": {
             "friction_coefficient": friction_coeff,
@@ -248,9 +295,15 @@ if col1.button("Save Parameters", type="primary", use_container_width=True):
     }
     save(PARAMS_PATH, new_params)
 
-    if alive and INPUTS_ID:
-        _patch(INPUTS_ID, "PayloadMass",  payload_mass)
-        _patch(INPUTS_ID, "SpeedScaling", speed_scaling)
+    if alive:
+        if INPUTS_ID:
+            _patch(INPUTS_ID, "PayloadMass",  payload_mass)
+            _patch(INPUTS_ID, "SpeedScaling", speed_scaling)
+        if DYNAMICS_ID:
+            _patch(DYNAMICS_ID, "FrictionCoefficient", friction_coeff)
+            _patch(DYNAMICS_ID, "CurrentNoiseLevel",   current_noise)
+            _patch(DYNAMICS_ID, "ControlLatency",      control_latency)
+            _patch(DYNAMICS_ID, "DampingFactor",       damping_factor)
 
     st.success("Saved. Restart the AAS server on the Control Panel to apply locally.")
 
