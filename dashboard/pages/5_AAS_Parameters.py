@@ -157,6 +157,22 @@ dyn_idx = _fetch(DYNAMICS_ID)   if alive else {}
 rs_idx  = _fetch(ROBOTSTATE_ID) if alive else {}
 kpi_idx = _fetch(KPI_ID)        if alive else {}
 
+if alive:
+    with st.expander("Debug — submodels loaded on BaSyx server", expanded=False):
+        try:
+            r = requests.get(f"{BASYX_URL}/submodels", headers=_HDRS, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                items = data.get("result", data) if isinstance(data, dict) else data
+                for sm in items:
+                    sm_id  = sm.get("id", "?")
+                    sm_short = sm.get("idShort", "?")
+                    st.code(f'{sm_short}  →  {sm_id}')
+            else:
+                st.warning(f"GET /submodels returned {r.status_code}")
+        except Exception as e:
+            st.error(str(e))
+
 # ── SM MotionCommand ──────────────────────────────────────────────────────────
 with st.expander('SM  "MotionCommand"   [urn:ur3:motioncommand:1]', expanded=True):
 
