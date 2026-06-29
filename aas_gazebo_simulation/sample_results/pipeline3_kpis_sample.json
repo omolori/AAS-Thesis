@@ -1,0 +1,41 @@
+{
+  "InputsUsed": {
+    "TargetJointPositions": [
+      -1.4561,
+      -1.666,
+      -0.2774,
+      -2.0748,
+      1.6275,
+      -0.1098
+    ],
+    "SpeedScaling": 1.0,
+    "PayloadMass": 1.2,
+    "FrictionCoefficient": 0.12,
+    "CurrentNoiseLevel": 0.08,
+    "ControlLatency": 0.03,
+    "DampingFactor": 0.15
+  },
+  "PerformanceKPIs": {
+    "CycleTime": 35.53776408399333,
+    "CycleTimes": [
+      35.53776408399334,
+      35.53776408399332,
+      35.53776408399334
+    ],
+    "RMSCurrent": 0.38664807083104846,
+    "RMSCurrentPerJoint": [
+      0.0678435760628161,
+      1.1727983514105222,
+      0.7732369554050728,
+      0.16958398709589736,
+      0.06935268157116463,
+      0.06707287344081767
+    ],
+    "EnergyConsumption": 500.0244973813907,
+    "PositionError": 1.5059066038356432
+  },
+  "Files": {
+    "CSV": "/home/roboh/ros2_ws/pipeline3_joint_states_20260629_050440.csv",
+    "KPI_JSON": "/home/roboh/ros2_ws/pipeline3_kpis_20260629_050440.json"
+  }
+}
